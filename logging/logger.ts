@@ -1,6 +1,6 @@
-
 import winston from 'winston';
 import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 // Define log levels
 const levels = {
@@ -15,47 +15,57 @@ const colors = {
   error: 'red',
   warn: 'yellow',
   info: 'green',
-  debug: 'blue'
+  debug: 'blue',
+  trace: 'magenta'
 };
 
 winston.addColors(colors);
 
+// Game-specific log levels
+const gameLogLevels = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  game: 3,
+  debug: 4,
+  trace: 5
+};
+
+// Enhanced formatter with UUID context
+const gameLogFormatter = winston.format.combine(
+  winston.format.timestamp({
+    format: 'YYYY-MM-DD HH:mm:ss.SSS'
+  }),
+  winston.format.errors({ stack: true }),
+  winston.format.printf(({ timestamp, level, message, service, ...meta }) => {
+    const logEntry = {
+      timestamp,
+      level,
+      service,
+      message,
+      sessionId: meta.sessionId || 'unknown',
+      traceId: meta.traceId || 'unknown',
+      entityId: meta.entityId,
+      playerId: meta.playerId,
+      characterId: meta.characterId,
+      regionId: meta.regionId,
+      requestId: meta.requestId,
+      ...meta
+    };
+
+    return JSON.stringify(logEntry);
+  })
+);
+
 // Create logger instance
 export const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
-  levels,
-  format: winston.format.combine(
-    winston.format.timestamp({
-      format: 'YYYY-MM-DD HH:mm:ss'
-    }),
-    winston.format.errors({ stack: true }),
-    winston.format.printf(({ timestamp, level, message, service, ...meta }) => {
-      const logEntry = {
-        timestamp,
-        level,
-        message,
-        service,
-        ...meta
-      };
-      
-      // Ensure certain fields are always present for searchability
-      if (!logEntry.requestId && meta.context?.requestId) {
-        logEntry.requestId = meta.context.requestId;
-      }
-      if (!logEntry.userId && meta.context?.userId) {
-        logEntry.userId = meta.context.userId;
-      }
-      if (!logEntry.regionId && meta.context?.regionId) {
-        logEntry.regionId = meta.context.regionId;
-      }
-      
-      return JSON.stringify(logEntry);
-    })
-  ),
+  levels: gameLogLevels,
+  format: gameLogFormatter,
   defaultMeta: {
     service: 'mmorpg-backend',
-    instanceId: process.env.INSTANCE_ID || 'unknown',
-    version: process.env.APP_VERSION || '1.0.0'
+    nodeId: process.env.NODE_ID || uuidv4(),
+    instanceId: uuidv4()
   },
   transports: [
     // Write all logs with level 'error' and below to error.log
@@ -65,14 +75,14 @@ export const logger = winston.createLogger({
       maxsize: 5242880, // 5MB
       maxFiles: 5
     }),
-    
+
     // Write all logs with level 'info' and below to combined.log
     new winston.transports.File({
       filename: path.join(process.cwd(), 'logs', 'combined.log'),
       maxsize: 5242880, // 5MB
       maxFiles: 5
     }),
-    
+
     // Console transport for development
     new winston.transports.Console({
       format: winston.format.combine(
