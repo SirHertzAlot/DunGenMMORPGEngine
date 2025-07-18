@@ -29,10 +29,33 @@ export const logger = winston.createLogger({
       format: 'YYYY-MM-DD HH:mm:ss'
     }),
     winston.format.errors({ stack: true }),
-    winston.format.json()
+    winston.format.printf(({ timestamp, level, message, service, ...meta }) => {
+      const logEntry = {
+        timestamp,
+        level,
+        message,
+        service,
+        ...meta
+      };
+      
+      // Ensure certain fields are always present for searchability
+      if (!logEntry.requestId && meta.context?.requestId) {
+        logEntry.requestId = meta.context.requestId;
+      }
+      if (!logEntry.userId && meta.context?.userId) {
+        logEntry.userId = meta.context.userId;
+      }
+      if (!logEntry.regionId && meta.context?.regionId) {
+        logEntry.regionId = meta.context.regionId;
+      }
+      
+      return JSON.stringify(logEntry);
+    })
   ),
   defaultMeta: {
-    service: 'mmorpg-backend'
+    service: 'mmorpg-backend',
+    instanceId: process.env.INSTANCE_ID || 'unknown',
+    version: process.env.APP_VERSION || '1.0.0'
   },
   transports: [
     // Write all logs with level 'error' and below to error.log

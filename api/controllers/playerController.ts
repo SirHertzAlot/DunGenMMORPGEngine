@@ -8,10 +8,21 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { logger } from '../../logging/logger';
 import { gameEventQueue } from '../../etl/queues/gameEventQueue';
 import { v4 as uuidv4 } from 'uuid';
+import { ContextualRequest } from '../../utils/requestContext';
 
 export class PlayerController {
-  async register(req: Request, res: Response): Promise<void> {
+  async register(req: ContextualRequest, res: Response): Promise<void> {
+    const context = req.context;
+    const operationId = uuidv4();
+    
     try {
+      logger.info('Player registration initiated', {
+        operationId,
+        requestId: context.requestId,
+        username: req.body.username,
+        email: req.body.email
+      });
+
       const validatedData = CreatePlayerSchema.parse(req.body);
 
       // Check if username or email already exists
@@ -21,17 +32,33 @@ export class PlayerController {
       ]);
 
       if (existingUsername) {
+        logger.warn('Registration failed - username exists', {
+          operationId,
+          requestId: context.requestId,
+          username: validatedData.username,
+          existingPlayerId: existingUsername._id
+        });
+        
         res.status(409).json({
           error: 'Conflict',
-          message: 'Username already exists'
+          message: 'Username already exists',
+          requestId: context.requestId
         });
         return;
       }
 
       if (existingEmail) {
+        logger.warn('Registration failed - email exists', {
+          operationId,
+          requestId: context.requestId,
+          email: validatedData.email,
+          existingPlayerId: existingEmail._id
+        });
+        
         res.status(409).json({
           error: 'Conflict',
-          message: 'Email already exists'
+          message: 'Email already exists',
+          requestId: context.requestId
         });
         return;
       }
@@ -45,6 +72,14 @@ export class PlayerController {
         username: validatedData.username,
         email: validatedData.email,
         passwordHash
+      });
+
+      logger.info('Player created successfully', {
+        operationId,
+        requestId: context.requestId,
+        playerId: player._id,
+        username: player.username,
+        regionId: player.position.regionId
       });
 
       // Generate JWT token
@@ -66,6 +101,13 @@ export class PlayerController {
         playerId: player._id,
         regionId: player.position.regionId,
         timestamp: Date.now(),
+        requestId: context.requestId,
+        sessionId: context.sessionId,
+        objectId: player._id,
+        objectType: 'Player',
+        correlationId: operationId,
+        source: 'PlayerController.register',
+        version: 1,
         data: {
           username: player.username,
           level: player.level
@@ -74,6 +116,7 @@ export class PlayerController {
 
       res.status(201).json({
         message: 'Player registered successfully',
+        requestId: context.requestId,
         data: {
           player: {
             id: player._id,
@@ -88,18 +131,33 @@ export class PlayerController {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'ZodError') {
+        logger.error('Player registration validation failed', {
+          operationId,
+          requestId: context.requestId,
+          error: error.message,
+          validationErrors: error.message
+        });
+        
         res.status(400).json({
           error: 'Validation Error',
           message: 'Invalid input data',
-          details: error.message
+          details: error.message,
+          requestId: context.requestId
         });
         return;
       }
 
-      logger.error('Player registration failed', { error: (error as Error).message });
+      logger.error('Player registration failed', {
+        operationId,
+        requestId: context.requestId,
+        error: (error as Error).message,
+        stack: (error as Error).stack
+      });
+      
       res.status(500).json({
         error: 'Internal Server Error',
-        message: 'Failed to register player'
+        message: 'Failed to register player',
+        requestId: context.requestId
       });
     }
   }

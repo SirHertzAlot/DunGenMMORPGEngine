@@ -123,6 +123,14 @@ export interface GameEvent {
   timestamp: number;
   data: any;
   priority?: number;
+  requestId?: string;
+  sessionId?: string;
+  objectId?: string;
+  objectType?: string;
+  parentEventId?: string;
+  correlationId?: string;
+  source: string;
+  version: number;
 }
 
 export class GameEventQueue {
@@ -141,10 +149,20 @@ export class GameEventQueue {
 
   async publishEvent(event: GameEvent): Promise<void> {
     try {
+      // Ensure all required tracking fields are present
+      const enrichedEvent: GameEvent = {
+        ...event,
+        id: event.id || uuidv4(),
+        timestamp: event.timestamp || Date.now(),
+        version: event.version || 1,
+        source: event.source || 'unknown',
+        correlationId: event.correlationId || event.requestId || uuidv4()
+      };
+
       const redis = redisConnection.getClient();
-      const eventData = JSON.stringify(event);
+      const eventData = JSON.stringify(enrichedEvent);
       
-      if (event.priority && event.priority > 5) {
+      if (enrichedEvent.priority && enrichedEvent.priority > 5) {
         // High priority events go to priority queue
         await redis.lPush(this.PRIORITY_QUEUE_KEY, eventData);
       } else {
@@ -152,15 +170,27 @@ export class GameEventQueue {
         await redis.lPush(this.QUEUE_KEY, eventData);
       }
 
-      logger.debug('Event published to queue', { 
-        eventId: event.id, 
-        type: event.type, 
-        priority: event.priority 
+      logger.info('Event published to queue', { 
+        eventId: enrichedEvent.id,
+        type: enrichedEvent.type,
+        priority: enrichedEvent.priority,
+        playerId: enrichedEvent.playerId,
+        regionId: enrichedEvent.regionId,
+        requestId: enrichedEvent.requestId,
+        sessionId: enrichedEvent.sessionId,
+        objectId: enrichedEvent.objectId,
+        objectType: enrichedEvent.objectType,
+        correlationId: enrichedEvent.correlationId,
+        source: enrichedEvent.source,
+        parentEventId: enrichedEvent.parentEventId
       });
     } catch (error) {
       logger.error('Failed to publish event to queue', { 
         error: (error as Error).message, 
-        event 
+        event: {
+          ...event,
+          data: '[REDACTED]' // Don't log sensitive data in errors
+        }
       });
       throw error;
     }

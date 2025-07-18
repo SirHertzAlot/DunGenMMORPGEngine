@@ -1,11 +1,12 @@
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
+import cors from 'cors';
 import compression from 'compression';
+import { logger } from '../logging/logger';
 import { DatabaseConnection } from '../config/database';
 import { redisConnection } from '../config/redis';
-import { logger } from '../logging/logger';
-import playerRoutes from './routes/playerRoutes';
+import { playerRoutes } from './routes/playerRoutes';
+import { requestContextMiddleware } from '../utils/requestContext';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
