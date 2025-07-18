@@ -1,148 +1,146 @@
 
 import { Player, IPlayer } from '../models/player.model';
 import { logger } from '../../logging/logger';
+import { CreatePlayerInput, UpdatePlayerInput } from '../../api/schemas/player.schema';
 
 export class PlayerRepository {
-  async create(playerData: Partial<IPlayer>): Promise<IPlayer> {
+  private static instance: PlayerRepository;
+
+  private constructor() {}
+
+  static getInstance(): PlayerRepository {
+    if (!PlayerRepository.instance) {
+      PlayerRepository.instance = new PlayerRepository();
+    }
+    return PlayerRepository.instance;
+  }
+
+  async createPlayer(playerData: CreatePlayerInput & { passwordHash: string }): Promise<IPlayer> {
     try {
-      const player = new Player(playerData);
-      const savedPlayer = await player.save();
-      
-      logger.info('Player created', {
-        playerId: savedPlayer._id,
-        username: savedPlayer.username
+      const player = new Player({
+        username: playerData.username,
+        email: playerData.email,
+        passwordHash: playerData.passwordHash
       });
-      
+
+      const savedPlayer = await player.save();
+      logger.info('Player created successfully', { playerId: savedPlayer._id, username: savedPlayer.username });
       return savedPlayer;
     } catch (error) {
-      logger.error('Error creating player', {
-        error: (error as Error).message,
-        playerData
-      });
+      logger.error('Failed to create player', { error: (error as Error).message, playerData: { username: playerData.username, email: playerData.email } });
       throw error;
     }
   }
 
-  async findById(playerId: string): Promise<IPlayer | null> {
+  async findPlayerById(playerId: string): Promise<IPlayer | null> {
     try {
       const player = await Player.findById(playerId).exec();
       return player;
     } catch (error) {
-      logger.error('Error finding player by ID', {
-        error: (error as Error).message,
-        playerId
-      });
+      logger.error('Failed to find player by ID', { error: (error as Error).message, playerId });
       throw error;
     }
   }
 
-  async findByUsername(username: string): Promise<IPlayer | null> {
+  async findPlayerByUsername(username: string): Promise<IPlayer | null> {
     try {
       const player = await Player.findOne({ username }).exec();
       return player;
     } catch (error) {
-      logger.error('Error finding player by username', {
-        error: (error as Error).message,
-        username
-      });
+      logger.error('Failed to find player by username', { error: (error as Error).message, username });
       throw error;
     }
   }
 
-  async findByRegion(regionId: string, limit: number = 100): Promise<IPlayer[]> {
+  async findPlayerByEmail(email: string): Promise<IPlayer | null> {
     try {
-      const players = await Player.find({
-        'position.regionId': regionId,
-        isOnline: true
-      })
-      .limit(limit)
-      .select('username level position stats isOnline')
-      .exec();
-      
-      return players;
+      const player = await Player.findOne({ email }).exec();
+      return player;
     } catch (error) {
-      logger.error('Error finding players by region', {
-        error: (error as Error).message,
-        regionId
-      });
+      logger.error('Failed to find player by email', { error: (error as Error).message, email });
       throw error;
     }
   }
 
-  async update(playerId: string, updateData: Partial<IPlayer>): Promise<IPlayer | null> {
+  async updatePlayer(playerId: string, updateData: UpdatePlayerInput): Promise<IPlayer | null> {
     try {
       const player = await Player.findByIdAndUpdate(
         playerId,
         { $set: updateData },
         { new: true, runValidators: true }
       ).exec();
-      
+
       if (player) {
-        logger.info('Player updated', {
-          playerId,
-          username: player.username,
-          updateData
-        });
+        logger.info('Player updated successfully', { playerId, updateData });
       }
-      
       return player;
     } catch (error) {
-      logger.error('Error updating player', {
-        error: (error as Error).message,
-        playerId,
-        updateData
-      });
+      logger.error('Failed to update player', { error: (error as Error).message, playerId, updateData });
       throw error;
     }
   }
 
-  async delete(playerId: string): Promise<boolean> {
+  async deletePlayer(playerId: string): Promise<boolean> {
     try {
       const result = await Player.findByIdAndDelete(playerId).exec();
-      
       if (result) {
-        logger.info('Player deleted', {
-          playerId,
-          username: result.username
-        });
+        logger.info('Player deleted successfully', { playerId });
         return true;
       }
-      
       return false;
     } catch (error) {
-      logger.error('Error deleting player', {
-        error: (error as Error).message,
-        playerId
-      });
+      logger.error('Failed to delete player', { error: (error as Error).message, playerId });
       throw error;
     }
   }
 
-  async setOnlineStatus(playerId: string, isOnline: boolean): Promise<void> {
+  async setPlayerOnlineStatus(playerId: string, isOnline: boolean): Promise<void> {
     try {
       await Player.findByIdAndUpdate(
         playerId,
         { 
-          $set: { 
-            isOnline,
-            lastLogin: isOnline ? new Date() : undefined
-          }
+          isOnline,
+          ...(isOnline ? {} : { lastLogin: new Date() })
         }
       ).exec();
-      
-      logger.info('Player online status updated', {
-        playerId,
-        isOnline
-      });
+
+      logger.info('Player online status updated', { playerId, isOnline });
     } catch (error) {
-      logger.error('Error updating player online status', {
-        error: (error as Error).message,
+      logger.error('Failed to update player online status', { error: (error as Error).message, playerId, isOnline });
+      throw error;
+    }
+  }
+
+  async getPlayersByRegion(regionId: string): Promise<IPlayer[]> {
+    try {
+      const players = await Player.find({ 
+        'position.regionId': regionId,
+        isOnline: true 
+      }).exec();
+      return players;
+    } catch (error) {
+      logger.error('Failed to get players by region', { error: (error as Error).message, regionId });
+      throw error;
+    }
+  }
+
+  async updatePlayerPosition(playerId: string, position: { x: number; y: number; z: number; regionId: string }): Promise<IPlayer | null> {
+    try {
+      const player = await Player.findByIdAndUpdate(
         playerId,
-        isOnline
-      });
+        { $set: { position } },
+        { new: true }
+      ).exec();
+
+      if (player) {
+        logger.debug('Player position updated', { playerId, position });
+      }
+      return player;
+    } catch (error) {
+      logger.error('Failed to update player position', { error: (error as Error).message, playerId, position });
       throw error;
     }
   }
 }
 
-export const playerRepository = new PlayerRepository();
+export const playerRepository = PlayerRepository.getInstance();

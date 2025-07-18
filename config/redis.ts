@@ -1,12 +1,12 @@
 
-import { createClient, RedisClientType } from 'redis';
+import { createClient } from 'redis';
 import { logger } from '../logging/logger';
 
 export class RedisConnection {
   private static instance: RedisConnection;
-  private client: RedisClientType | null = null;
-  private subscriber: RedisClientType | null = null;
-  private publisher: RedisClientType | null = null;
+  private client: ReturnType<typeof createClient> | null = null;
+  private pubClient: ReturnType<typeof createClient> | null = null;
+  private subClient: ReturnType<typeof createClient> | null = null;
 
   private constructor() {}
 
@@ -23,17 +23,14 @@ export class RedisConnection {
       
       // Main client for general operations
       this.client = createClient({ url: redisUrl });
+      await this.client.connect();
       
-      // Dedicated clients for pub/sub
-      this.subscriber = createClient({ url: redisUrl });
-      this.publisher = createClient({ url: redisUrl });
-
-      // Connect all clients
-      await Promise.all([
-        this.client.connect(),
-        this.subscriber.connect(),
-        this.publisher.connect()
-      ]);
+      // Pub/Sub clients
+      this.pubClient = createClient({ url: redisUrl });
+      this.subClient = createClient({ url: redisUrl });
+      
+      await this.pubClient.connect();
+      await this.subClient.connect();
 
       logger.info('Redis connected successfully', { url: redisUrl });
 
@@ -42,53 +39,47 @@ export class RedisConnection {
         logger.error('Redis client error', { error: error.message });
       });
 
-      this.subscriber.on('error', (error) => {
-        logger.error('Redis subscriber error', { error: error.message });
+      this.pubClient.on('error', (error) => {
+        logger.error('Redis pub client error', { error: error.message });
       });
 
-      this.publisher.on('error', (error) => {
-        logger.error('Redis publisher error', { error: error.message });
+      this.subClient.on('error', (error) => {
+        logger.error('Redis sub client error', { error: error.message });
       });
 
     } catch (error) {
-      logger.error('Redis connection failed', { error: (error as Error).message });
+      logger.error('Failed to connect to Redis', { error: (error as Error).message });
       throw error;
     }
   }
 
-  async disconnect(): Promise<void> {
-    try {
-      if (this.client) await this.client.disconnect();
-      if (this.subscriber) await this.subscriber.disconnect();
-      if (this.publisher) await this.publisher.disconnect();
-      
-      logger.info('Redis disconnected');
-    } catch (error) {
-      logger.error('Error disconnecting from Redis', { error: (error as Error).message });
-      throw error;
-    }
-  }
-
-  getClient(): RedisClientType {
+  getClient() {
     if (!this.client) {
-      throw new Error('Redis client not connected');
+      throw new Error('Redis client not initialized. Call connect() first.');
     }
     return this.client;
   }
 
-  getSubscriber(): RedisClientType {
-    if (!this.subscriber) {
-      throw new Error('Redis subscriber not connected');
+  getPubClient() {
+    if (!this.pubClient) {
+      throw new Error('Redis pub client not initialized. Call connect() first.');
     }
-    return this.subscriber;
+    return this.pubClient;
   }
 
-  getPublisher(): RedisClientType {
-    if (!this.publisher) {
-      throw new Error('Redis publisher not connected');
+  getSubClient() {
+    if (!this.subClient) {
+      throw new Error('Redis sub client not initialized. Call connect() first.');
     }
-    return this.publisher;
+    return this.subClient;
+  }
+
+  async disconnect(): Promise<void> {
+    if (this.client) await this.client.quit();
+    if (this.pubClient) await this.pubClient.quit();
+    if (this.subClient) await this.subClient.quit();
+    logger.info('Redis disconnected');
   }
 }
 
-export const redis = RedisConnection.getInstance();
+export const redisConnection = RedisConnection.getInstance();

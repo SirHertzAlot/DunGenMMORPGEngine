@@ -1,75 +1,106 @@
-
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
+import cors from 'cors';
 import compression from 'compression';
-import { createServer } from 'http';
 import { logger } from '../logging/logger';
-import { rateLimiter } from './middleware/rateLimiter';
-import { authMiddleware } from './middleware/auth';
-import { validationMiddleware } from './middleware/validation';
+import { DatabaseConnection } from '../config/database';
+import { redisConnection } from '../config/redis';
 import { playerRoutes } from './routes/playerRoutes';
-import { worldRoutes } from './routes/worldRoutes';
-import { adminRoutes } from './routes/adminRoutes';
+import { requestContextMiddleware } from '../utils/requestContext';
 
 const app = express();
-const server = createServer(app);
+const PORT = process.env.PORT || 5000;
 
-// Security middleware
+// Middleware
 app.use(helmet());
 app.use(cors());
 app.use(compression());
-
-// Rate limiting
-app.use(rateLimiter);
-
-// Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Logging middleware
+// Request logging middleware
 app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.path}`, {
+  logger.info('Incoming request', {
+    method: req.method,
+    url: req.url,
     ip: req.ip,
-    userAgent: req.get('User-Agent'),
-    timestamp: new Date().toISOString()
+    userAgent: req.get('User-Agent')
   });
   next();
 });
 
-// Routes
-app.use('/api/players', authMiddleware, playerRoutes);
-app.use('/api/world', authMiddleware, worldRoutes);
-app.use('/api/admin', authMiddleware, adminRoutes);
-
-// Health check
+// Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
-// Error handling
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error('API Error', {
-    error: err.message,
-    stack: err.stack,
-    path: req.path,
+// API routes
+app.use('/api/players', playerRoutes);
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    message: 'The requested resource was not found'
+  });
+});
+
+// Global error handler
+app.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  logger.error('Unhandled error', {
+    error: error.message,
+    stack: error.stack,
+    url: req.url,
     method: req.method
   });
-  
+
   res.status(500).json({
     error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    message: 'Something went wrong'
   });
 });
 
-const PORT = process.env.PORT || 5000;
+async function startServer() {
+  try {
+    // Connect to databases
+    const db = DatabaseConnection.getInstance();
+    await db.connect();
 
-server.listen(PORT, '0.0.0.0', () => {
-  logger.info(`API Server running on port ${PORT}`);
+    await redisConnection.connect();
+
+    // Start server
+    app.listen(PORT, '0.0.0.0', () => {
+      logger.info(`Server started successfully`, {
+        port: PORT,
+        environment: process.env.NODE_ENV || 'development'
+      });
+    });
+
+  } catch (error) {
+    logger.error('Failed to start server', { error: (error as Error).message });
+    process.exit(1);
+  }
+}
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  await redisConnection.disconnect();
+  process.exit(0);
 });
+
+process.on('SIGINT', async () => {
+  logger.info('SIGINT received, shutting down gracefully');
+  await redisConnection.disconnect();
+  process.exit(0);
+});
+
+if (require.main === module) {
+  startServer();
+}
 
 export default app;
