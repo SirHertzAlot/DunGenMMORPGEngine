@@ -112,4 +112,120 @@ export class GameEventQueue {
   }
 }
 
+import { redisConnection } from '../../config/redis';
+import { logger } from '../../logging/logger';
+
+export interface GameEvent {
+  id: string;
+  type: string;
+  playerId: string;
+  regionId: string;
+  timestamp: number;
+  data: any;
+  priority?: number;
+}
+
+export class GameEventQueue {
+  private static instance: GameEventQueue;
+  private readonly QUEUE_KEY = 'game_events';
+  private readonly PRIORITY_QUEUE_KEY = 'priority_game_events';
+
+  private constructor() {}
+
+  static getInstance(): GameEventQueue {
+    if (!GameEventQueue.instance) {
+      GameEventQueue.instance = new GameEventQueue();
+    }
+    return GameEventQueue.instance;
+  }
+
+  async publishEvent(event: GameEvent): Promise<void> {
+    try {
+      const redis = redisConnection.getClient();
+      const eventData = JSON.stringify(event);
+      
+      if (event.priority && event.priority > 5) {
+        // High priority events go to priority queue
+        await redis.lPush(this.PRIORITY_QUEUE_KEY, eventData);
+      } else {
+        // Normal events go to regular queue
+        await redis.lPush(this.QUEUE_KEY, eventData);
+      }
+
+      logger.debug('Event published to queue', { 
+        eventId: event.id, 
+        type: event.type, 
+        priority: event.priority 
+      });
+    } catch (error) {
+      logger.error('Failed to publish event to queue', { 
+        error: (error as Error).message, 
+        event 
+      });
+      throw error;
+    }
+  }
+
+  async subscribeToEvents(callback: (event: GameEvent) => Promise<void>): Promise<void> {
+    try {
+      const redis = redisConnection.getClient();
+      
+      logger.info('Starting event queue subscription');
+      
+      while (true) {
+        try {
+          // Check priority queue first
+          let eventData = await redis.brPop(
+            redis.commandOptions({ isolated: true }),
+            { key: this.PRIORITY_QUEUE_KEY, timeout: 1 }
+          );
+          
+          // If no priority events, check regular queue
+          if (!eventData) {
+            eventData = await redis.brPop(
+              redis.commandOptions({ isolated: true }),
+              { key: this.QUEUE_KEY, timeout: 5 }
+            );
+          }
+
+          if (eventData) {
+            const event: GameEvent = JSON.parse(eventData.element);
+            await callback(event);
+            
+            logger.debug('Event processed from queue', { 
+              eventId: event.id, 
+              type: event.type 
+            });
+          }
+        } catch (error) {
+          logger.error('Error processing event from queue', { 
+            error: (error as Error).message 
+          });
+          // Continue processing other events
+        }
+      }
+    } catch (error) {
+      logger.error('Event queue subscription failed', { 
+        error: (error as Error).message 
+      });
+      throw error;
+    }
+  }
+
+  async getQueueSize(): Promise<{ regular: number; priority: number }> {
+    try {
+      const redis = redisConnection.getClient();
+      const [regular, priority] = await Promise.all([
+        redis.lLen(this.QUEUE_KEY),
+        redis.lLen(this.PRIORITY_QUEUE_KEY)
+      ]);
+      
+      return { regular, priority };
+    } catch (error) {
+      logger.error('Failed to get queue size', { error: (error as Error).message });
+      throw error;
+    }
+  }
+}
+
 export const gameEventQueue = GameEventQueue.getInstance();

@@ -42,6 +42,89 @@ export interface IPlayer extends Document {
   isOnline: boolean;
 }
 
+const playerSchema = new Schema<IPlayer>({
+  username: {
+    type: String,
+    required: true,
+    unique: true,
+    minlength: 3,
+    maxlength: 20,
+    match: /^[a-zA-Z0-9_]+$/
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  },
+  passwordHash: {
+    type: String,
+    required: true,
+    minlength: 60
+  },
+  level: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 100
+  },
+  experience: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  position: {
+    x: { type: Number, default: 0 },
+    y: { type: Number, default: 0 },
+    z: { type: Number, default: 0 },
+    regionId: { type: String, default: 'starter_region' }
+  },
+  stats: {
+    health: { type: Number, default: 100 },
+    maxHealth: { type: Number, default: 100 },
+    mana: { type: Number, default: 50 },
+    maxMana: { type: Number, default: 50 },
+    strength: { type: Number, default: 10 },
+    agility: { type: Number, default: 10 },
+    intelligence: { type: Number, default: 10 }
+  },
+  inventory: {
+    items: [{
+      itemId: { type: String, required: true },
+      quantity: { type: Number, required: true, min: 1 },
+      slot: { type: Number, required: true, min: 0 }
+    }],
+    capacity: { type: Number, default: 30 }
+  },
+  guild: {
+    guildId: { type: String },
+    role: { type: String, enum: ['member', 'officer', 'leader'] },
+    joinedAt: { type: Date }
+  },
+  lastLogin: {
+    type: Date,
+    default: Date.now
+  },
+  isOnline: {
+    type: Boolean,
+    default: false
+  }
+}, {
+  timestamps: true,
+  collection: 'players'
+});
+
+// Indexes for performance
+playerSchema.index({ username: 1 });
+playerSchema.index({ email: 1 });
+playerSchema.index({ 'position.regionId': 1 });
+playerSchema.index({ level: -1 });
+playerSchema.index({ isOnline: 1 });
+playerSchema.index({ 'guild.guildId': 1 });
+
+export const Player = mongoose.model<IPlayer>('Player', playerSchema);
+
 const PlayerSchema = new Schema<IPlayer>({
   username: {
     type: String,
