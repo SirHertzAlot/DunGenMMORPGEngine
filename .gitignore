@@ -1,0 +1,29 @@
+# Node.js
+node_modules/
+package-lock.json
+
+# C#
+*.sln
+*.csproj
+*.userprefs
+*.pidb
+*.suo
+*.user
+*.unityproj
+*.booproj
+
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Pp]ackages/
+[Mm]emoryCaptures/
+*.csproj
+*.unityproj
+*.sln
+*.userprefs
+*.pdb
+*.mdb
