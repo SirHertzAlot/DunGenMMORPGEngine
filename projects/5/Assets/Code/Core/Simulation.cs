@@ -45,9 +45,10 @@ namespace DunGen.Core
             _frameNumber = 0;
             _accumulatedTime = 0f;
 
-            // Publish initialization event
-            var initEvent = new SimulationInitializedEvent
+            // Publish initialization event (pure data struct)
+            var initEvent = new SimulationInitializedEventData
             {
+                EventId = _eventBus.GetNextEventId(),
                 Seed = seed,
                 MaxEntities = 10000,
                 Timestamp = 0f,

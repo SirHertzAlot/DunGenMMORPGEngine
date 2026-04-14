@@ -126,7 +126,14 @@ namespace DunGen.Tests
             var log = new EventLog();
             log.Initialize(TEST_SEED);
 
-            var evt1 = new SimulationInitializedEvent { Seed = TEST_SEED, MaxEntities = 1000 };
+            var evt1 = new SimulationInitializedEventData 
+            { 
+                EventId = 1,
+                Seed = TEST_SEED, 
+                MaxEntities = 1000,
+                FrameNumber = 0,
+                Timestamp = 0f
+            };
             log.RecordEvent(evt1);
             log.AdvanceFrame();
 
@@ -140,7 +147,14 @@ namespace DunGen.Tests
             var log = new EventLog();
             log.Initialize(TEST_SEED);
 
-            var evt = new SimulationInitializedEvent { Seed = TEST_SEED, MaxEntities = 1000 };
+            var evt = new SimulationInitializedEventData 
+            { 
+                EventId = 1,
+                Seed = TEST_SEED, 
+                MaxEntities = 1000,
+                FrameNumber = 0,
+                Timestamp = 0f
+            };
             log.RecordEvent(evt);
 
             string json = log.ExportToJson();
@@ -155,14 +169,21 @@ namespace DunGen.Tests
             bus.Clear();
 
             int callCount = 0;
-            void Handler(SimulationInitializedEvent e) => callCount++;
+            void Handler(SimulationInitializedEventData e) => callCount++;
 
-            bus.Subscribe<SimulationInitializedEvent>(Handler);
-            var evt = new SimulationInitializedEvent { Seed = 42 };
+            bus.Subscribe<SimulationInitializedEventData>(Handler);
+            var evt = new SimulationInitializedEventData 
+            { 
+                EventId = 1,
+                Seed = 42,
+                MaxEntities = 100,
+                FrameNumber = 0,
+                Timestamp = 0f
+            };
             bus.Publish(evt);
 
             Assert.AreEqual(1, callCount);
-            bus.Unsubscribe<SimulationInitializedEvent>(Handler);
+            bus.Unsubscribe<SimulationInitializedEventData>(Handler);
         }
 
         [Test]

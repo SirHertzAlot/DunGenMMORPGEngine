@@ -194,8 +194,12 @@ namespace DunGen.Tests
 
             for (int i = 0; i < 10; i++)
             {
-                var evt = new DamageTakenEvent
+                var evt = new DamageTakenEventData
                 {
+                    EventId = (ulong)(i + 1),
+                    FrameNumber = (uint)i,
+                    Timestamp = i * 0.016667f,
+                    SourceEntity = new Entity(),
                     DamageAmount = _sim.GetRNG().DiceRoll(8),
                     RemainingHealth = 100 - (i * 10),
                     MaxHealth = 100
@@ -213,8 +217,12 @@ namespace DunGen.Tests
 
             for (int i = 0; i < 10; i++)
             {
-                var evt = new DamageTakenEvent
+                var evt = new DamageTakenEventData
                 {
+                    EventId = (ulong)(i + 1),
+                    FrameNumber = (uint)i,
+                    Timestamp = i * 0.016667f,
+                    SourceEntity = new Entity(),
                     DamageAmount = sim2.GetRNG().DiceRoll(8),
                     RemainingHealth = 100 - (i * 10),
                     MaxHealth = 100

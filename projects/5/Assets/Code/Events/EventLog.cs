@@ -2,17 +2,19 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Reflection;
 
 namespace DunGen.Events
 {
     /// <summary>
     /// Records all game events for replay and debugging.
+    /// Data-oriented: works with pure event data structs.
     /// Ensures deterministic replayability: same seed + action log = same final state.
     /// </summary>
     public class EventLog
     {
         private readonly List<LoggedAction> _actions = new();
-        private readonly List<GameEvent> _events = new();
+        private readonly List<(object @event, string typeName, uint frameNumber)> _events = new();
         private ulong _seed;
         private uint _currentFrame;
 
@@ -49,12 +51,15 @@ namespace DunGen.Events
             _actions.Add(action);
         }
 
-        /// <summary>Record an event that occurred.</summary>
-        public void RecordEvent(GameEvent @event)
+        /// <summary>Record a data-oriented event (struct).</summary>
+        public void RecordEvent<T>(T @event) where T : struct
         {
-            @event.FrameNumber = _currentFrame;
-            @event.Timestamp = _currentFrame / 60f; // Assuming 60 Hz
-            _events.Add(@event);
+            string typeName = typeof(T).Name;
+            // Remove "EventData" suffix for cleaner type names
+            if (typeName.EndsWith("EventData"))
+                typeName = typeName.Substring(0, typeName.Length - 9); // Remove "EventData"
+            
+            _events.Add((@event, typeName, _currentFrame));
         }
 
         /// <summary>Advance frame counter.</summary>
@@ -66,8 +71,8 @@ namespace DunGen.Events
         /// <summary>Get all logged actions.</summary>
         public IReadOnlyList<LoggedAction> GetActions() => _actions.AsReadOnly();
 
-        /// <summary>Get all recorded events.</summary>
-        public IReadOnlyList<GameEvent> GetEvents() => _events.AsReadOnly();
+        /// <summary>Get all recorded events as objects (for compatibility).</summary>
+        public IReadOnlyList<object> GetEvents() => _events.Select(e => e.@event).ToList();
 
         /// <summary>Get initial seed.</summary>
         public ulong GetSeed() => _seed;
@@ -75,7 +80,7 @@ namespace DunGen.Events
         /// <summary>Get current frame number.</summary>
         public uint GetCurrentFrame() => _currentFrame;
 
-        /// <summary>Export log as JSON-compatible string (simple format for MVP).</summary>
+        /// <summary>Export log as JSON-compatible string.</summary>
         public string ExportToJson()
         {
             var sb = new StringBuilder();
@@ -101,17 +106,70 @@ namespace DunGen.Events
 
             for (int i = 0; i < _events.Count; i++)
             {
-                var @event = _events[i];
-                sb.AppendLine($"    {{\n      \"id\": {i},");
-                sb.AppendLine($"      \"frame\": {@event.FrameNumber},");
-                sb.AppendLine($"      \"type\": \"{@event.GetEventTypeName()}\",");
-                sb.AppendLine($"      \"data\": {@event.ToJsonString()}");
+                var (evt, typeName, frameNumber) = _events[i];
+                sb.AppendLine($"    {{");
+                sb.AppendLine($"      \"id\": {i},");
+                sb.AppendLine($"      \"frame\": {frameNumber},");
+                sb.AppendLine($"      \"type\": \"{typeName}\",");
+                sb.AppendLine($"      \"data\": {SerializeEventToJson(evt)}");
                 sb.AppendLine($"    }}{(i < _events.Count - 1 ? "," : "")}");
             }
 
             sb.AppendLine("  ]");
             sb.AppendLine("}");
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Serialize a struct event to JSON by reflecting over its fields.
+        /// Data-oriented: no GetEventTypeName() or ToJsonString() methods.
+        /// </summary>
+        private string SerializeEventToJson(object evt)
+        {
+            if (evt == null)
+                return "null";
+
+            var type = evt.GetType();
+            var sb = new StringBuilder();
+            sb.Append("{");
+
+            var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+            for (int i = 0; i < fields.Length; i++)
+            {
+                var field = fields[i];
+                var value = field.GetValue(evt);
+                
+                sb.Append($"\"{field.Name}\":");
+                
+                if (value == null)
+                    sb.Append("null");
+                else if (value is string str)
+                    sb.Append($"\"{str}\"");
+                else if (value is bool b)
+                    sb.Append(b ? "true" : "false");
+                else if (value is int[] intArr || value is float[] floatArr)
+                    sb.Append(SerializeArray(value));
+                else
+                    sb.Append(value);
+                
+                if (i < fields.Length - 1)
+                    sb.Append(",");
+            }
+
+            sb.Append("}");
+            return sb.ToString();
+        }
+
+        /// <summary>Serialize arrays to JSON.</summary>
+        private string SerializeArray(object arr)
+        {
+            if (arr is int[] intArr)
+                return $"[{string.Join(",", intArr)}]";
+            if (arr is float[] floatArr)
+                return $"[{string.Join(",", floatArr)}]";
+            if (arr is string[] strArr)
+                return $"[{string.Join(",", strArr.Select(s => $"\"{s}\""))}]";
+            return "[]";
         }
 
         /// <summary>Clear all logs.</summary>
