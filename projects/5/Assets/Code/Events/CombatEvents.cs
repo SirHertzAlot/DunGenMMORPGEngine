@@ -159,4 +159,112 @@ namespace DunGen.Events.Combat
         public float Potency;
         public int StackCount;
     }
+
+    /// <summary>Event: Action queued for execution.</summary>
+    public struct ActionQueuedEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int ActorEntityId;
+        public int ActionType;  // 0=Attack, 1=Spell, 2=Move, 3=Dodge, 4=Item, 5=Pass
+        public int TargetEntityId;
+        public string ActionName;
+        public int ActionCost;  // 0=Reaction, 1=Action, 2=Bonus
+    }
+
+    /// <summary>Event: Action execution started.</summary>
+    public struct ActionStartedEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int ActorEntityId;
+        public int ActionType;
+        public int TargetEntityId;
+        public string ActionName;
+    }
+
+    /// <summary>Event: Action execution completed and resolved.</summary>
+    public struct ActionResolvedEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int ActorEntityId;
+        public int ActionType;
+        public int TargetEntityId;
+        public bool IsSuccessful;
+        public int EffectValue;  // Damage dealt, healing done, etc
+    }
+
+    /// <summary>Event: Action failed to execute.</summary>
+    public struct ActionFailedEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int ActorEntityId;
+        public int ActionType;
+        public int TargetEntityId;
+        public string FailureReason;
+    }
+
+    /// <summary>Event: Condition applied to combatant.</summary>
+    public struct ConditionAppliedEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int TargetEntityId;
+        public string ConditionName;
+        public uint DurationFrames;
+        public int SourceEntityId;
+    }
+
+    /// <summary>Event: Condition expired on combatant.</summary>
+    public struct ConditionExpiredEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int TargetEntityId;
+        public string ConditionName;
+    }
+
+    /// <summary>Event: Resource consumed (mana, stamina, etc).</summary>
+    public struct ResourceConsumedEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int ActorEntityId;
+        public string ResourceType;  // "Mana", "Stamina", "Health"
+        public int AmountConsumed;
+        public int RemainingAmount;
+    }
+
+    /// <summary>Event: Turn ended for current actor.</summary>
+    public struct TurnTransitionEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int PreviousActorId;
+        public int NextActorId;
+        public int RoundNumber;
+        public int TurnNumber;
+    }
+
+    /// <summary>Event: Round ended (all actors have acted).</summary>
+    public struct RoundTransitionEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int CompletedRoundNumber;
+        public int NextRoundNumber;
+        public int TotalDamageThisRound;
+        public int ActionsExecuted;
+    }
 }
