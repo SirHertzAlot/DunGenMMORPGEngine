@@ -1,0 +1,186 @@
+# Enemy/NPC Archetypes - Define all creature types and their stats
+# Used by procedural generation to populate dungeons randomly but deterministically
+
+enemies:
+  goblin:
+    name: "Goblin"
+    type: "miniature_humanoid"
+    rarity: "common"
+    stats:
+      strength: 8
+      dexterity: 14
+      constitution: 10
+      intelligence: 10
+      wisdom: 8
+      charisma: 8
+    hitDice: "2d6"      # 2d6 + CON
+    armorClass: 12
+    speed: 30  # feet per turn
+    alignment: "chaotic evil"
+    languages:
+      - "Goblin"
+    senses:
+      darkvision: 60
+    skills:
+      - "Stealth"
+    abilities:
+      - "Scimitar"
+      - "Shortbow"
+    xp_reward: 50
+
+  orc:
+    name: "Orc"
+    type: "humanoid"
+    rarity: "uncommon"
+    stats:
+      strength: 16
+      dexterity: 12
+      constitution: 16
+      intelligence: 7
+      wisdom: 11
+      charisma: 10
+    hitDice: "2d8+4"
+    armorClass: 13
+    speed: 30
+    alignment: "chaotic evil"
+    languages:
+      - "Orc"
+    senses:
+      darkvision: 60
+    skills:
+      - "Intimidation"
+    abilities:
+      - "Greataxe"
+      - "Javelin"
+    xp_reward: 100
+
+  skeleton:
+    name: "Skeleton"
+    type: "undead"
+    rarity: "common"
+    stats:
+      strength: 10
+      dexterity: 14
+      constitution: 15
+      intelligence: 6
+      wisdom: 8
+      charisma: 5
+    hitDice: "2d8+4"
+    armorClass: 15
+    speed: 30
+    immunities:
+      - "poison"
+      - "exhaustion"
+    vulnerabilities:
+      - "blunt_damage"
+    abilities:
+      - "Shortsword"
+      - "Shortbow"
+    xp_reward: 50
+
+  vampire:
+    name: "Vampire"
+    type: "undead"
+    rarity: "legendary"
+    stats:
+      strength: 18
+      dexterity: 18
+      constitution: 18
+      intelligence: 17
+      wisdom: 15
+      charisma: 18
+    hitDice: "18d8+144"
+    armorClass: 16
+    speed: 30
+    immunities:
+      - "poison"
+    resistances:
+      - "necrotic"
+      - "nonmagical_weapons"
+    abilities:
+      - "Bite"
+      - "Charm"
+      - "Children of the Night"
+    xp_reward: 10000
+
+  giant_spider:
+    name: "Giant Spider"
+    type: "beast"
+    rarity: "uncommon"
+    stats:
+      strength: 14
+      dexterity: 16
+      constitution: 13
+      intelligence: 2
+      wisdom: 11
+      charisma: 2
+    hitDice: "2d10+2"
+    armorClass: 14
+    speed: 30
+    alignmnent: "unaligned"
+    senses:
+      darkvision: 60
+      perception: 11
+    abilities:
+      - "Bite"
+      - "Web"
+    xp_reward: 200
+
+  zombie:
+    name: "Zombie"
+    type: "undead"
+    rarity: "common"
+    stats:
+      strength: 13
+      dexterity: 6
+      constitution: 16
+      intelligence: 3
+      wisdom: 6
+      charisma: 5
+    hitDice: "3d8+9"
+    armorClass: 8
+    speed: 20
+    immunities:
+      - "poison"
+    vulnerabilities:
+      - "radiant"
+    abilities:
+      - "Slam"
+    xp_reward: 150
+
+# Encounter difficulty settings
+encounters:
+  easy:
+    enemyCount: 1
+    averageEnemyRarity: "common"
+
+  medium:
+    enemyCount: 2
+    averageEnemyRarity: "uncommon"
+
+  hard:
+    enemyCount: 3
+    averageEnemyRarity: "uncommon"
+
+  deadly:
+    enemyCount: 4
+    averageEnemyRarity: "rare"
+
+  legendary:
+    enemyCount: 5
+    averageEnemyRarity: "legendary"
+
+# Boss definitions
+bosses:
+  dragon_lord:
+    name: "Dragon Lord"
+    baseEnemy: "vampire"
+    multipliers:
+      health: 2.0
+      damage: 1.5
+      armor: 1.2
+    specialAbilities:
+      - "Fire Breath"
+      - "Magic Resistance"
+      - "Teleport"
+    xp_reward: 50000

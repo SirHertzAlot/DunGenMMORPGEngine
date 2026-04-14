@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/needle-tools/unity-project-validation/main/Schemas/assembly-definition-schema.json",
+  "name": "DunGen.Core",
+  "rootNamespace": "DunGen.Core",
+  "references": [
+    "GUID:b1cea33b21b6d4e4086f49927b521bda"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

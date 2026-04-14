@@ -1,0 +1,186 @@
+# Loot Tables - Define all possible items and their generation rules
+# Rarity: common, uncommon, rare, legendary
+# These are used by procedural generation when placing loot in dungeons
+
+items:
+  # Weapons
+  longsword:
+    name: "Longsword"
+    type: "weapon"
+    rarity: "common"
+    damage: "1d8"
+    damageType: "slashing"
+    value: 15
+    weight: 3
+
+  greatsword:
+    name: "Greatsword"
+    type: "weapon"
+    rarity: "uncommon"
+    damage: "2d6"
+    damageType: "slashing"
+    value: 50
+    weight: 6
+
+  shortsword:
+    name: "Shortsword"
+    type: "weapon"
+    rarity: "common"
+    damage: "1d6"
+    damageType: "piercing"
+    value: 10
+    weight: 2
+
+  dagger:
+    name: "Dagger"
+    type: "weapon"
+    rarity: "common"
+    damage: "1d4"
+    damageType: "piercing"
+    value: 2
+    weight: 1
+
+  greataxe:
+    name: "Greataxe"
+    type: "weapon"
+    rarity: "uncommon"
+    damage: "1d12"
+    damageType: "slashing"
+    value: 30
+    weight: 7
+
+  # Armor
+  leather_armor:
+    name: "Leather Armor"
+    type: "armor"
+    rarity: "common"
+    armor_class: 11
+    value: 5
+    weight: 10
+
+  chain_mail:
+    name: "Chain Mail"
+    type: "armor"
+    rarity: "uncommon"
+    armor_class: 16
+    value: 75
+    weight: 55
+
+  plate_armor:
+    name: "Plate Armor"
+    type: "armor"
+    rarity: "rare"
+    armor_class: 18
+    value: 1500
+    weight: 65
+
+  # Consumables
+  health_potion_minor:
+    name: "Minor Health Potion"
+    type: "consumable"
+    rarity: "common"
+    effect: "heal"
+    value: 5
+    healAmount: 10
+    weight: 0.5
+
+  health_potion_major:
+    name: "Major Health Potion"
+    type: "consumable"
+    rarity: "uncommon"
+    effect: "heal"
+    value: 25
+    healAmount: 50
+    weight: 0.5
+
+  mana_potion:
+    name: "Mana Potion"
+    type: "consumable"
+    rarity: "uncommon"
+    effect: "restore_mana"
+    value: 20
+    restoreMana: 30
+    weight: 0.5
+
+  # Magical items
+  ring_of_protection:
+    name: "Ring of Protection"
+    type: "magical"
+    rarity: "rare"
+    bonus: "ac"
+    value: 500
+    weight: 0
+
+  amulet_of_health:
+    name: "Amulet of Health"
+    type: "magical"
+    rarity: "rare"
+    bonus: "max_health"
+    bonusValue: 10
+    value: 750
+    weight: 0
+
+# Loot Tables: Mappings of rarity to item pools
+lootTables:
+  common:
+    items:
+      - "health_potion_minor"
+      - "leather_armor"
+      - "dagger"
+    weights: [1, 1, 1]
+
+  uncommon:
+    items:
+      - "health_potion_major"
+      - "shortsword"
+      - "chain_mail"
+      - "greatsword"
+    weights: [1, 2, 1, 1]
+
+  rare:
+    items:
+      - "plate_armor"
+      - "ring_of_protection"
+      - "amulet_of_health"
+    weights: [1, 1, 1]
+
+  legendary:
+    items: []
+    weights: []
+
+# Enemy drop tables: What enemies drop when defeated
+enemyDrops:
+  goblin:
+    drops:
+      - rarity: "common"
+        weight: 3
+        items:
+          - "health_potion_minor"
+          - "dagger"
+          - "leather_armor"
+      - rarity: "uncommon"
+        weight: 1
+        items:
+          - "shortsword"
+
+  orc:
+    drops:
+      - rarity: "uncommon"
+        weight: 2
+        items:
+          - "greatsword"
+          - "chain_mail"
+      - rarity: "rare"
+        weight: 1
+        items:
+          - "ring_of_protection"
+
+  dragon:
+    drops:
+      - rarity: "rare"
+        weight: 1
+        items:
+          - "plate_armor"
+      - rarity: "legendary"
+        weight: 1
+        items: []  # Legendary drops defined separately

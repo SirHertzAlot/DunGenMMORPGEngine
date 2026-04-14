@@ -1,0 +1,115 @@
+# Character Archetypes - Define player character classes and their base stats
+# These are templates that can be customized at character creation
+
+archetypes:
+  barbarian:
+    name: "Barbarian"
+    description: "Strong and tough fighter who relies on rage"
+    baseStats:
+      strength: 15
+      dexterity: 10
+      constitution: 14
+      intelligence: 8
+      wisdom: 11
+      charisma: 10
+    hitDiceType: 12  # d12
+    hitDiceCount: 1
+    armorClass: 10    # Unarmored defense
+    skills:
+      - "Athletics"
+      - "Survival"
+    startingSpells: []
+    startingItems:
+      - "Greataxe"
+      - "Leather Armor"
+
+  rogue:
+    name: "Rogue"
+    description: "Nimble and cunning"
+    baseStats:
+      strength: 8
+      dexterity: 15
+      constitution: 10
+      intelligence: 12
+      wisdom: 11
+      charisma: 10
+    hitDiceType: 8    # d8
+    hitDiceCount: 1
+    armorClass: 12    # Base AC + DEX
+    skills:
+      - "Acrobatics"
+      - "Stealth"
+      - "Sleight of Hand"
+    startingSpells: []
+    startingItems:
+      - "Shortsword"
+      - "Leather Armor"
+
+  cleric:
+    name: "Cleric"
+    description: "Holy warrior with healing magic"
+    baseStats:
+      strength: 10
+      dexterity: 10
+      constitution: 12
+      intelligence: 10
+      wisdom: 15
+      charisma: 12
+    hitDiceType: 8    # d8
+    hitDiceCount: 1
+    armorClass: 13    # Light armor
+    skills:
+      - "Medicine"
+      - "Religion"
+    startingSpells:
+      - "Cure Wounds"
+      - "Healing Word"
+    startingItems:
+      - "Mace"
+      - "Leather Armor"
+      - "Shield"
+
+  wizard:
+    name: "Wizard"
+    description: "Master of arcane magic"
+    baseStats:
+      strength: 8
+      dexterity: 10
+      constitution: 11
+      intelligence: 15
+      wisdom: 12
+      charisma: 10
+    hitDiceType: 6    # d6
+    hitDiceCount: 1
+    armorClass: 10    # No armor
+    skills:
+      - "Arcana"
+      - "Investigation"
+    startingSpells:
+      - "Magic Missile"
+      - "Mage Armor"
+      - "Shield"
+    startingItems:
+      - "Dagger"
+      - "Spellbook"
+
+# Progression table: XP needed per level
+progressionTable:
+  levels:
+    1: 0
+    2: 300
+    3: 900
+    4: 2700
+    5: 6500
+    6: 14000
+    7: 23000
+    8: 34000
+    9: 48000
+    10: 64000
+
+# Level-up bonuses: stats and features gained per level
+levelUpBonuses:
+  default:
+    abilityScoreIncrease: 2  # Every 4 levels
+    proficiencyBonus: 2       # Base increases at certain levels
+    healthPerLevel: 1         # d8 average + CON mod

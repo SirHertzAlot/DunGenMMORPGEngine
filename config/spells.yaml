@@ -1,0 +1,147 @@
+# Spells and Abilities - Define all player spells and abilities
+# Used for character progression and combat mechanics
+
+spells:
+  # Evocation (Damage/Control)
+  magic_missile:
+    name: "Magic Missile"
+    level: 1
+    school: "evocation"
+    castingTime: "1 action"
+    range: "120 feet"
+    components: ["verbal", "somatic"]
+    duration: "Instantaneous"
+    description: "Unerring magical bolts strike their targets."
+    damage: "1d4+1"
+    damageType: "force"
+    numberOfTargets: 1
+    damagePerTarget: "1d4+1"
+    manaCost: 10
+
+  fireball:
+    name: "Fireball"
+    level: 3
+    school: "evocation"
+    castingTime: "1 action"
+    range: "150 feet"
+    components: ["verbal", "somatic", "material"]
+    duration: "Instantaneous"
+    description: "A bright streak flashes from your pointing finger to a point of your choice."
+    damage: "8d6"
+    damageType: "fire"
+    saveDC: 15
+    areaOfEffect: "20-foot radius sphere"
+    manaCost: 50
+
+  # Abjuration (Protection)
+  shield:
+    name: "Shield"
+    level: 1
+    school: "abjuration"
+    castingTime: "1 reaction"
+    range: "Self"
+    components: ["verbal", "somatic"]
+    duration: "1 round"
+    description: "An invisible barrier of magical force appears."
+    acBonus: 5
+    manaCost: 5
+
+  mage_armor:
+    name: "Mage Armor"
+    level: 1
+    school: "abjuration"
+    castingTime: "1 action"
+    range: "Touch"
+    components: ["verbal", "somatic", "material"]
+    duration: "8 hours"
+    description: "Protects the subject with magical force, granting AC 13 + DEX."
+    acFormula: "13 + dexterity_modifier"
+    manaCost: 10
+
+  # Healing (Restoration)
+  cure_wounds:
+    name: "Cure Wounds"
+    level: 1
+    school: "evocation"
+    castingTime: "1 action"
+    range: "Touch"
+    components: ["verbal", "somatic"]
+    duration: "Instantaneous"
+    description: "A creature you touch regains hit points."
+    healing: "1d8+4"
+    manaCost: 15
+
+  healing_word:
+    name: "Healing Word"
+    level: 1
+    school: "evocation"
+    castingTime: "1 bonus action"
+    range: "60 feet"
+    components: ["verbal", "somatic"]
+    duration: "Instantaneous"
+    description: "A creature you can see within 60 feet regains hit points."
+    healing: "1d4+4"
+    manaCost: 10
+
+# Abilities (Non-spell actions)
+abilities:
+  attack:
+    name: "Attack"
+    description: "Make a melee or ranged attack."
+    castingTime: "1 action"
+    range: "Melee or ranged"
+    manaCost: 0
+
+  dodge:
+    name: "Dodge"
+    description: "Gain advantage on DEX saves, attackers have disadvantage."
+    castingTime: "1 action"
+    duration: "1 round"
+    manaCost: 0
+
+  multiattack:
+    name: "Multiattack"
+    description: "Make multiple attacks in one turn (barbarian/fighter only)."
+    castingTime: "1 action"
+    numberOfAttacks: 2
+    manaCost: 0
+
+  rage:
+    name: "Rage"
+    description: "Barbarian ability - gain damage resistance and bonus damage."
+    castingTime: "1 bonus action"
+    duration: "10 rounds"
+    damageBonus: 2
+    manaCost: 0  # Uses special Rage resource instead
+
+# Spell progression by class and level
+spellProgression:
+  wizard:
+    1: ["magic_missile", "shield", "mage_armor"]
+    2: ["mage_armor"]
+    3: ["fireball"]
+    5: []
+
+  cleric:
+    1: ["cure_wounds", "healing_word"]
+    3: []
+    5: []
+
+  barbarian:
+    1: []  # No spells, but has abilities
+
+# Cooldowns and usage limits
+spellLimits:
+  perDay:
+    level1: 4
+    level2: 3
+    level3: 3
+    level4: 3
+    level5: 3
+
+  perCombat:
+    level1: 3
+    level2: 2
+    level3: 2
+    level4: 2
+    level5: 1
