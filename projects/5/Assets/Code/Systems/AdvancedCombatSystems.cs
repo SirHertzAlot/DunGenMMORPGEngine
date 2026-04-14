@@ -180,15 +180,62 @@ namespace DunGen.ECS.Systems.Combat
 
             Entities
                 .WithoutBurst()
-                .ForEach((ref TurnQueueComponent turnQueue, ref CombatRoundComponent round) =>
+                .ForEach((ref TurnQueueComponent turnQueue, ref CombatRoundComponent round,
+                          ref ActionCostComponent costs, ref ConditionComponent conditions) =>
                 {
                     if (turnQueue.CurrentTurnIndex >= turnQueue.TotalCombatants)
                         return;
 
-                    // TODO: Transition to next turn
-                    // - Emit turn transition event
-                    // - Reset action economy for new actor
-                    // - Clear conditions that expired
+                    // Capture the actor whose turn is ending before any state changes.
+                    int previousActorId = turnQueue.GetCurrentActor();
+
+                    // --- Clean up the outgoing actor's turn-duration state BEFORE advancing ---
+
+                    // Reset action economy so the same entity is fresh for their next turn.
+                    // (In this architecture each entity owns its own TurnQueue/ActionCost/Condition.)
+                    costs.ResetForNewTurn();
+
+                    // Shield lasts until the start of the actor's next turn.
+                    conditions.HasShield = false;
+
+                    // Decrement timed conditions and emit expiry events when they run out.
+                    if (conditions.IsProne && conditions.ProneDuration > 0)
+                    {
+                        conditions.ProneDuration--;
+                        if (conditions.ProneDuration == 0)
+                        {
+                            conditions.IsProne = false;
+                            if (conditions.ActiveConditionCount > 0)
+                                conditions.ActiveConditionCount--;
+
+                            _eventBus?.Publish(new ConditionExpiredEventData
+                            {
+                                EventId = _eventBus.GetNextEventId(),
+                                FrameNumber = (uint)UnityEngine.Time.frameCount,
+                                Timestamp = (uint)UnityEngine.Time.frameCount / 60f,
+                                TargetEntityId = previousActorId,
+                                ConditionName = "Prone"
+                            });
+                        }
+                    }
+
+                    // Advance to the next actor in the initiative order.
+                    turnQueue.AdvanceTurn();
+
+                    // Get the actor whose turn is beginning (-1 if the round is now complete).
+                    int nextActorId = turnQueue.GetCurrentActor();
+
+                    // Emit turn transition event.
+                    _eventBus?.Publish(new TurnTransitionEventData
+                    {
+                        EventId = _eventBus.GetNextEventId(),
+                        FrameNumber = (uint)UnityEngine.Time.frameCount,
+                        Timestamp = (uint)UnityEngine.Time.frameCount / 60f,
+                        PreviousActorId = previousActorId,
+                        NextActorId = nextActorId,
+                        RoundNumber = round.RoundNumber,
+                        TurnNumber = turnQueue.CurrentTurnIndex
+                    });
 
                 }).Run();
         }

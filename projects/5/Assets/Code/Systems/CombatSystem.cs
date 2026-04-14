@@ -40,7 +40,8 @@ namespace DunGen.ECS.Systems.Combat
             // Process each combat round
             Entities
                 .WithoutBurst()
-                .ForEach((ref CombatComponent combat, ref CombatRoundComponent round) =>
+                .ForEach((ref CombatComponent combat, ref CombatRoundComponent round,
+                          ref TurnQueueComponent turnQueue) =>
                 {
                     if (!combat.IsInCombat)
                         return;
@@ -48,7 +49,7 @@ namespace DunGen.ECS.Systems.Combat
                     switch (round.CombatPhase)
                     {
                         case 0: // Initialize combat
-                            HandleCombatInitialization(ref combat, ref round);
+                            HandleCombatInitialization(ref combat, ref round, ref turnQueue);
                             break;
 
                         case 1: // In progress
@@ -65,7 +66,8 @@ namespace DunGen.ECS.Systems.Combat
         /// <summary>
         /// Phase 0: Initialize combat with initiative rolls for all participants.
         /// </summary>
-        private void HandleCombatInitialization(ref CombatComponent combat, ref CombatRoundComponent round)
+        private void HandleCombatInitialization(ref CombatComponent combat, ref CombatRoundComponent round,
+            ref TurnQueueComponent turnQueue)
         {
             if (round.CombatPhase != 0)
                 return;
@@ -73,19 +75,27 @@ namespace DunGen.ECS.Systems.Combat
             // Initialize seeded RNG for this combat session
             _rng.SetSeed(combat.CombatSeed);
 
+            // Build ordered participant and initiative arrays from the turn queue
+            int count = turnQueue.TotalCombatants;
+            var participantIds = new int[count];
+            var initiativeOrder = new int[count];
+            for (int i = 0; i < count; i++)
+            {
+                int id = turnQueue.GetCombatantAt(i);
+                participantIds[i] = id;
+                initiativeOrder[i] = id; // turn queue is already sorted by initiative
+            }
+
             // Fire CombatStartedEventData (pure data struct)
             var startedEvent = new CombatStartedEventData
             {
                 EventId = _eventBus.GetNextEventId(),
                 FrameNumber = (uint)UnityEngine.Time.frameCount,
                 Timestamp = (uint)UnityEngine.Time.frameCount / 60f,
-                ParticipantEntityIds = new int[round.TotalParticipants],
-                InitiativeOrder = new int[round.TotalParticipants],
+                ParticipantEntityIds = participantIds,
+                InitiativeOrder = initiativeOrder,
                 CombatSessionId = combat.CombatSessionId
             };
-
-            // TODO: Populate participant list from combat session tracking
-            // For now, this is a placeholder
             _eventBus?.Publish(startedEvent);
 
             // Move to in-progress phase
@@ -150,7 +160,7 @@ namespace DunGen.ECS.Systems.Combat
                 FrameNumber = (uint)UnityEngine.Time.frameCount,
                 Timestamp = (uint)UnityEngine.Time.frameCount / 60f,
                 CombatSessionId = combat.CombatSessionId,
-                EndReason = "AllEnemiesDefeated", // TODO: Determine actual reason
+                EndReason = combat.IsDead ? "Defeated" : "AllEnemiesDefeated",
                 TotalRoundsElapsed = round.RoundNumber
             };
             _eventBus?.Publish(endedEvent);
@@ -171,12 +181,12 @@ namespace DunGen.ECS.Systems.Combat
 
         /// <summary>
         /// Check if combat should end (victory condition met).
+        /// Returns true when this entity has been defeated (health at or below zero).
         /// </summary>
         private bool CheckVictoryCondition(ref CombatComponent combat, ref CombatRoundComponent round)
         {
-            // TODO: Check if all enemies are defeated
-            // For now, always false to keep combat running
-            return false;
+            // Combat ends for this entity when they are defeated
+            return combat.IsDead;
         }
     }
 

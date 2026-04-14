@@ -205,6 +205,38 @@ namespace DunGen.ECS.Combat
         {
             CurrentTurnIndex = 0;
         }
+
+        /// <summary>
+        /// Returns the entity ID stored at the given index in the combatant array.
+        /// Returns -1 for out-of-range indices.
+        /// </summary>
+        public int GetCombatantAt(int index)
+        {
+            return index switch
+            {
+                0  => Combatant0,
+                1  => Combatant1,
+                2  => Combatant2,
+                3  => Combatant3,
+                4  => Combatant4,
+                5  => Combatant5,
+                6  => Combatant6,
+                7  => Combatant7,
+                8  => Combatant8,
+                9  => Combatant9,
+                10 => Combatant10,
+                11 => Combatant11,
+                12 => Combatant12,
+                13 => Combatant13,
+                14 => Combatant14,
+                15 => Combatant15,
+                16 => Combatant16,
+                17 => Combatant17,
+                18 => Combatant18,
+                19 => Combatant19,
+                _  => -1
+            };
+        }
     }
 
     /// <summary>
