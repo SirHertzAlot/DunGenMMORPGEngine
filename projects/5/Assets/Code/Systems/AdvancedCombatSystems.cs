@@ -3,6 +3,7 @@ using DunGen.Events;
 using DunGen.Events.Combat;
 using DunGen.Simulation.RNG;
 using DunGen.ECS.Core;
+using DunGen.ECS.Combat;
 
 namespace DunGen.ECS.Systems.Combat
 {
@@ -180,15 +181,40 @@ namespace DunGen.ECS.Systems.Combat
 
             Entities
                 .WithoutBurst()
-                .ForEach((ref TurnQueueComponent turnQueue, ref CombatRoundComponent round) =>
+                .ForEach((ref TurnQueueComponent turnQueue, ref CombatRoundComponent round,
+                         ref ActionCostComponent costs, ref ConditionComponent conditions) =>
                 {
                     if (turnQueue.CurrentTurnIndex >= turnQueue.TotalCombatants)
                         return;
 
-                    // TODO: Transition to next turn
-                    // - Emit turn transition event
-                    // - Reset action economy for new actor
-                    // - Clear conditions that expired
+                    int previousActorId = turnQueue.GetCurrentActor();
+
+                    // Transition to next turn
+                    turnQueue.AdvanceTurn();
+                    int nextActorId = turnQueue.GetCurrentActor();
+
+                    // Emit turn transition event
+                    _eventBus?.Publish(new TurnTransitionEventData
+                    {
+                        EventId = _eventBus.GetNextEventId(),
+                        FrameNumber = (uint)UnityEngine.Time.frameCount,
+                        Timestamp = (uint)UnityEngine.Time.frameCount / 60f,
+                        PreviousActorId = previousActorId,
+                        NextActorId = nextActorId,
+                        RoundNumber = round.RoundNumber,
+                        TurnNumber = turnQueue.CurrentTurnIndex
+                    });
+
+                    // Reset action economy for the new actor
+                    costs.ResetForNewTurn();
+
+                    // Clear conditions that expired (decrement Prone duration and lift it when it runs out)
+                    if (conditions.IsProne && conditions.ProneDuration > 0)
+                    {
+                        conditions.ProneDuration--;
+                        if (conditions.ProneDuration == 0)
+                            conditions.RemoveCondition("Prone");
+                    }
 
                 }).Run();
         }

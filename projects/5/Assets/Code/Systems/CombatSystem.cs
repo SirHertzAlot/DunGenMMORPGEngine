@@ -40,7 +40,7 @@ namespace DunGen.ECS.Systems.Combat
             // Process each combat round
             Entities
                 .WithoutBurst()
-                .ForEach((ref CombatComponent combat, ref CombatRoundComponent round) =>
+                .ForEach((Entity entity, ref CombatComponent combat, ref CombatRoundComponent round) =>
                 {
                     if (!combat.IsInCombat)
                         return;
@@ -48,7 +48,7 @@ namespace DunGen.ECS.Systems.Combat
                     switch (round.CombatPhase)
                     {
                         case 0: // Initialize combat
-                            HandleCombatInitialization(ref combat, ref round);
+                            HandleCombatInitialization(entity.Index, ref combat, ref round);
                             break;
 
                         case 1: // In progress
@@ -65,7 +65,7 @@ namespace DunGen.ECS.Systems.Combat
         /// <summary>
         /// Phase 0: Initialize combat with initiative rolls for all participants.
         /// </summary>
-        private void HandleCombatInitialization(ref CombatComponent combat, ref CombatRoundComponent round)
+        private void HandleCombatInitialization(int entityId, ref CombatComponent combat, ref CombatRoundComponent round)
         {
             if (round.CombatPhase != 0)
                 return;
@@ -84,8 +84,24 @@ namespace DunGen.ECS.Systems.Combat
                 CombatSessionId = combat.CombatSessionId
             };
 
-            // TODO: Populate participant list from combat session tracking
-            // For now, this is a placeholder
+            // Register this combatant in the session queue and populate participant list
+            if (!_combatQueues.TryGetValue(combat.CombatSessionId, out var sessionParticipants))
+            {
+                sessionParticipants = new List<(int entityId, int initiative)>();
+                _combatQueues[combat.CombatSessionId] = sessionParticipants;
+            }
+
+            int initiative = _rng.RollD20();
+            sessionParticipants.Add((entityId, initiative));
+
+            startedEvent.ParticipantEntityIds = new int[sessionParticipants.Count];
+            startedEvent.InitiativeOrder = new int[sessionParticipants.Count];
+            for (int i = 0; i < sessionParticipants.Count; i++)
+            {
+                startedEvent.ParticipantEntityIds[i] = sessionParticipants[i].entityId;
+                startedEvent.InitiativeOrder[i] = sessionParticipants[i].initiative;
+            }
+
             _eventBus?.Publish(startedEvent);
 
             // Move to in-progress phase
@@ -150,7 +166,7 @@ namespace DunGen.ECS.Systems.Combat
                 FrameNumber = (uint)UnityEngine.Time.frameCount,
                 Timestamp = (uint)UnityEngine.Time.frameCount / 60f,
                 CombatSessionId = combat.CombatSessionId,
-                EndReason = "AllEnemiesDefeated", // TODO: Determine actual reason
+                EndReason = combat.IsDead ? "PlayerDefeated" : "AllEnemiesDefeated",
                 TotalRoundsElapsed = round.RoundNumber
             };
             _eventBus?.Publish(endedEvent);
@@ -174,9 +190,10 @@ namespace DunGen.ECS.Systems.Combat
         /// </summary>
         private bool CheckVictoryCondition(ref CombatComponent combat, ref CombatRoundComponent round)
         {
-            // TODO: Check if all enemies are defeated
-            // For now, always false to keep combat running
-            return false;
+            // Combat ends when the active combatant is defeated (health at or below 0).
+            // In multi-entity combat this would query all entities in the session to
+            // verify no enemies remain alive; for now a single-combatant defeat suffices.
+            return combat.IsDead;
         }
     }
 
