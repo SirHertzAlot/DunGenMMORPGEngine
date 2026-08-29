@@ -2,9 +2,14 @@
 node_modules/
 package-lock.json
 
+# Markdown documentation/notes
+*.md
+*.markdown
+
 # C#
 *.sln
 *.csproj
+!services/**/*.csproj
 *.userprefs
 *.pidb
 *.suo
@@ -20,10 +25,23 @@ package-lock.json
 [Bb]uilds/
 [Ll]ogs/
 [Pp]ackages/
+!projects/5/Packages/
+!projects/5/Packages/manifest.json
+!projects/5/Packages/packages-lock.json
 [Mm]emoryCaptures/
 *.csproj
+!services/**/*.csproj
 *.unityproj
 *.sln
 *.userprefs
 *.pdb
 *.mdb
+
+# Local dependency/cache folders
+.appdata/
+.dotnet/
+.nuget/
+
+# .NET build output
+bin/
+obj/

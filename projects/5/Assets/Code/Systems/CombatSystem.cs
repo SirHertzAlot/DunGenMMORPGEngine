@@ -4,6 +4,8 @@ using DunGen.Events;
 using DunGen.ECS.Core;
 using DunGen.ECS.Combat;
 using System.Collections.Generic;
+using System.Linq;
+using Unity.Collections;
 
 namespace DunGen.ECS.Systems.Combat
 {
@@ -17,11 +19,13 @@ namespace DunGen.ECS.Systems.Combat
         private readonly DeterministicRNG _rng = new();
         private EventBus _eventBus;
         private Dictionary<int, List<(int entityId, int initiative)>> _combatQueues = new();
+        private EntityIndexCache _entityCache;
 
-        public override void OnCreate()
+        protected override void OnCreate()
         {
             base.OnCreate();
             RequireForUpdate<CombatComponent>();
+            _entityCache = EntityIndexCache.Instance;
         }
 
         public void Initialize(EventBus eventBus)
@@ -72,26 +76,32 @@ namespace DunGen.ECS.Systems.Combat
 
             // Initialize seeded RNG for this combat session
             _rng.SetSeed(combat.CombatSeed);
+            var participants = GetCombatParticipantIds(combat.CombatSessionId, round.TotalParticipants);
+            var initiativeOrder = GetInitiativeOrder(combat.CombatSessionId, participants);
+            round.TotalParticipants = participants.Length;
 
             // Fire CombatStartedEventData (pure data struct)
-            var startedEvent = new CombatStartedEventData
+            var startedEvent = new global::DunGen.Events.Combat.CombatStartedEventData
             {
                 EventId = _eventBus.GetNextEventId(),
                 FrameNumber = (uint)UnityEngine.Time.frameCount,
                 Timestamp = (uint)UnityEngine.Time.frameCount / 60f,
-                ParticipantEntityIds = new int[round.TotalParticipants],
-                InitiativeOrder = new int[round.TotalParticipants],
+                ParticipantEntityIds = participants,
+                InitiativeOrder = initiativeOrder,
                 CombatSessionId = combat.CombatSessionId
             };
 
-            // TODO: Populate participant list from combat session tracking
-            // For now, this is a placeholder
+            _combatQueues[combat.CombatSessionId] = initiativeOrder
+                .Select((entityId, index) => (entityId, initiative: initiativeOrder.Length - index))
+                .ToList();
+
             _eventBus?.Publish(startedEvent);
 
             // Move to in-progress phase
             round.CombatPhase = 1;
             round.RoundNumber = 1;
             round.CurrentTurnIndex = 0;
+            round.ActiveCombatantId = initiativeOrder.Length > 0 ? initiativeOrder[0] : combat.CombatSessionId;
         }
 
         /// <summary>
@@ -102,8 +112,24 @@ namespace DunGen.ECS.Systems.Combat
             if (round.CombatPhase != 1)
                 return;
 
-            // Process current actor's turn
-            // This will be expanded with action queue processing
+            var actorId = GetActorForTurn(combat.CombatSessionId, round.CurrentTurnIndex);
+            if (actorId < 0)
+                actorId = combat.CombatSessionId;
+
+            round.ActiveCombatantId = actorId;
+
+            _eventBus?.Publish(new global::DunGen.Events.Combat.TurnStartedEventData
+            {
+                EventId = _eventBus.GetNextEventId(),
+                FrameNumber = (uint)UnityEngine.Time.frameCount,
+                Timestamp = (uint)UnityEngine.Time.frameCount / 60f,
+                ActorEntityId = actorId,
+                RoundNumber = round.RoundNumber,
+                TurnIndex = round.CurrentTurnIndex
+            });
+
+            MarkCombatantActed(actorId, round.RoundNumber);
+
             HandleTurnActions(ref combat, ref round);
 
             // Advance to next combatant
@@ -113,7 +139,7 @@ namespace DunGen.ECS.Systems.Combat
             if (round.CurrentTurnIndex >= round.TotalParticipants)
             {
                 // Fire RoundEndedEventData (pure data struct)
-                var roundEndedEvent = new RoundEndedEventData
+                var roundEndedEvent = new global::DunGen.Events.Combat.RoundEndedEventData
                 {
                     EventId = _eventBus.GetNextEventId(),
                     FrameNumber = (uint)UnityEngine.Time.frameCount,
@@ -126,6 +152,7 @@ namespace DunGen.ECS.Systems.Combat
                 // Increment round counter and reset turn index
                 round.RoundNumber++;
                 round.CurrentTurnIndex = 0;
+                ResetCombatantRoundFlags(combat.CombatSessionId);
             }
 
             // Check victory conditions
@@ -143,14 +170,27 @@ namespace DunGen.ECS.Systems.Combat
             if (round.CombatPhase != 2)
                 return;
 
+            var participants = GetCombatParticipants(combat.CombatSessionId, round.TotalParticipants);
+            var victorIds = participants
+                .Where(p => p.IsInCombat && !p.IsDead)
+                .Select(p => p.EntityId)
+                .ToArray();
+            var defeatedIds = participants
+                .Where(p => p.IsDead)
+                .Select(p => p.EntityId)
+                .ToArray();
+            var endReason = DetermineEndReason(victorIds.Length, defeatedIds.Length);
+
             // Fire CombatEndedEventData (pure data struct)
-            var endedEvent = new CombatEndedEventData
+            var endedEvent = new global::DunGen.Events.Combat.CombatEndedEventData
             {
                 EventId = _eventBus.GetNextEventId(),
                 FrameNumber = (uint)UnityEngine.Time.frameCount,
                 Timestamp = (uint)UnityEngine.Time.frameCount / 60f,
                 CombatSessionId = combat.CombatSessionId,
-                EndReason = "AllEnemiesDefeated", // TODO: Determine actual reason
+                VictorIds = victorIds,
+                DefeatedIds = defeatedIds,
+                EndReason = endReason,
                 TotalRoundsElapsed = round.RoundNumber
             };
             _eventBus?.Publish(endedEvent);
@@ -165,8 +205,8 @@ namespace DunGen.ECS.Systems.Combat
         /// </summary>
         private void HandleTurnActions(ref CombatComponent combat, ref CombatRoundComponent round)
         {
-            // Placeholder for action queue processing
-            // Will be expanded in future updates
+            round.ActionsThisRound++;
+            round.ActiveCombatantId = GetActorForTurn(combat.CombatSessionId, round.CurrentTurnIndex);
         }
 
         /// <summary>
@@ -174,9 +214,147 @@ namespace DunGen.ECS.Systems.Combat
         /// </summary>
         private bool CheckVictoryCondition(ref CombatComponent combat, ref CombatRoundComponent round)
         {
-            // TODO: Check if all enemies are defeated
-            // For now, always false to keep combat running
-            return false;
+            var participants = GetCombatParticipants(combat.CombatSessionId, round.TotalParticipants);
+            if (participants.Count == 0)
+                return false;
+
+            int activeCombatants = participants.Count(p => p.IsInCombat && !p.IsDead);
+            return activeCombatants <= 1;
+        }
+
+        private int[] GetCombatParticipantIds(int combatSessionId, int expectedParticipants)
+        {
+            var participants = GetCombatParticipants(combatSessionId, expectedParticipants);
+            if (participants.Count == 0)
+                return new[] { combatSessionId };
+
+            return participants.Select(p => p.EntityId).ToArray();
+        }
+
+        private int[] GetInitiativeOrder(int combatSessionId, int[] participants)
+        {
+            if (participants.Length == 0)
+                return System.Array.Empty<int>();
+
+            var initiatives = new Dictionary<int, int>();
+            var query = EntityManager.CreateEntityQuery(
+                ComponentType.ReadOnly<CombatComponent>(),
+                ComponentType.ReadOnly<InitiativeComponent>());
+
+            using var entities = query.ToEntityArray(Allocator.Temp);
+            using var combatComponents = query.ToComponentDataArray<CombatComponent>(Allocator.Temp);
+            using var initiativeComponents = query.ToComponentDataArray<InitiativeComponent>(Allocator.Temp);
+
+            for (int i = 0; i < entities.Length; i++)
+            {
+                if (combatComponents[i].CombatSessionId != combatSessionId)
+                    continue;
+
+                initiatives[entities[i].Index] = initiativeComponents[i].InitiativeScore;
+            }
+
+            return participants
+                .OrderByDescending(id => initiatives.TryGetValue(id, out var score) ? score : int.MinValue)
+                .ThenBy(id => id)
+                .ToArray();
+        }
+
+        private List<CombatParticipantSnapshot> GetCombatParticipants(int combatSessionId, int expectedParticipants)
+        {
+            var query = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CombatComponent>());
+            using var entities = query.ToEntityArray(Allocator.Temp);
+            using var components = query.ToComponentDataArray<CombatComponent>(Allocator.Temp);
+
+            var participants = new List<CombatParticipantSnapshot>(expectedParticipants > 0 ? expectedParticipants : entities.Length);
+
+            for (int i = 0; i < entities.Length; i++)
+            {
+                var component = components[i];
+                if (component.CombatSessionId != combatSessionId)
+                    continue;
+
+                participants.Add(new CombatParticipantSnapshot(
+                    entities[i].Index,
+                    component.IsInCombat,
+                    component.IsDead));
+            }
+
+            return participants
+                .OrderBy(p => p.EntityId)
+                .ToList();
+        }
+
+        private int GetActorForTurn(int combatSessionId, int currentTurnIndex)
+        {
+            if (_combatQueues.TryGetValue(combatSessionId, out var queue) &&
+                currentTurnIndex >= 0 &&
+                currentTurnIndex < queue.Count)
+            {
+                return queue[currentTurnIndex].entityId;
+            }
+
+            var participants = GetCombatParticipantIds(combatSessionId, currentTurnIndex + 1);
+            return currentTurnIndex >= 0 && currentTurnIndex < participants.Length
+                ? participants[currentTurnIndex]
+                : -1;
+        }
+
+        private void MarkCombatantActed(int actorId, int roundNumber)
+        {
+            // O(1) lookup via EntityIndexCache instead of O(n) linear scan
+            if (!_entityCache.TryGetEntity(actorId, out var entity) ||
+                !EntityManager.HasComponent<CombatComponent>(entity))
+                return;
+
+            var combatant = EntityManager.GetComponentData<CombatComponent>(entity);
+            combatant.HasActedThisRound = true;
+            combatant.CurrentRound = roundNumber;
+            EntityManager.SetComponentData(entity, combatant);
+        }
+
+        private void ResetCombatantRoundFlags(int combatSessionId)
+        {
+            var query = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CombatComponent>());
+            using var entities = query.ToEntityArray(Allocator.Temp);
+            using var components = query.ToComponentDataArray<CombatComponent>(Allocator.Temp);
+
+            for (int i = 0; i < entities.Length; i++)
+            {
+                var combatant = components[i];
+                if (combatant.CombatSessionId != combatSessionId)
+                    continue;
+
+                combatant.HasActedThisRound = false;
+                EntityManager.SetComponentData(entities[i], combatant);
+            }
+        }
+
+        private static string DetermineEndReason(int victorCount, int defeatedCount)
+        {
+            if (victorCount == 0 && defeatedCount > 0)
+                return "MutualDefeat";
+
+            if (victorCount > 0 && defeatedCount > 0)
+                return "AllOpponentsDefeated";
+
+            if (victorCount > 0)
+                return "LastCombatantStanding";
+
+            return "CombatResolved";
+        }
+
+        private readonly struct CombatParticipantSnapshot
+        {
+            public CombatParticipantSnapshot(int entityId, bool isInCombat, bool isDead)
+            {
+                EntityId = entityId;
+                IsInCombat = isInCombat;
+                IsDead = isDead;
+            }
+
+            public int EntityId { get; }
+            public bool IsInCombat { get; }
+            public bool IsDead { get; }
         }
     }
 
@@ -394,9 +572,9 @@ namespace DunGen.ECS.Systems.Combat
             // Roll attack
             var (isHit, d20, isCritical, isFumble) = _attackResolver.ResolveAttack(strModifier, defenderAC);
 
-            // Fire AttackResolvedEvent
-            var attackEvent = new AttackResolvedEvent
+            var attackEvent = new global::DunGen.Events.Combat.AttackResolvedEventData
             {
+                EventId = _eventBus.GetNextEventId(),
                 FrameNumber = (uint)UnityEngine.Time.frameCount,
                 Timestamp = (uint)UnityEngine.Time.frameCount / 60f,
                 AttackerEntityId = attackerId,
@@ -409,7 +587,7 @@ namespace DunGen.ECS.Systems.Combat
                 IsNaturalTwenty = isCritical,
                 IsNaturalOne = isFumble,
                 WeaponName = weaponName,
-                DamageIfHit = 0 // Will be populated if hit
+                DamageIfHit = 0
             };
 
             int damage = 0;
@@ -421,7 +599,7 @@ namespace DunGen.ECS.Systems.Combat
                 attackEvent.DamageIfHit = damage;
 
                 // Fire DamageInflictedEventData (pure data struct)
-                var damageEvent = new DamageInflictedEventData
+                var damageEvent = new global::DunGen.Events.Combat.DamageInflictedEventData
                 {
                     EventId = _eventBus.GetNextEventId(),
                     FrameNumber = (uint)UnityEngine.Time.frameCount,

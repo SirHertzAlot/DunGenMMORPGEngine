@@ -165,50 +165,6 @@ namespace DunGen.ECS.Combat
     }
 
     /// <summary>
-    /// Holds the queue of pending actions for a combatant this turn.
-    /// Used for turn-based combat: each actor's action is queued and processed.
-    /// </summary>
-    public struct ActionQueueComponent : IComponentData
-    {
-        /// <summary>ID of the action type queued (Attack, Cast, Move, etc).</summary>
-        public int QueuedActionType;
-        
-        /// <summary>Target entity ID (if applicable to the action).</summary>
-        public int TargetEntityId;
-        
-        /// <summary>Weapon/spell index (references loaded configuration).</summary>
-        public int ItemIndex;
-        
-        /// <summary>Has an action been queued for this turn yet?</summary>
-        public bool HasQueuedAction;
-        
-        /// <summary>Raw parameter data (position, angle, etc) as comma-separated values.</summary>
-        public char ActionData0; // Workaround for storing small data in component
-    }
-
-    /// <summary>
-    /// Tracking for current combat round and participation.
-    /// Updated by CombatSystem each frame.
-    /// </summary>
-    public struct CombatRoundComponent : IComponentData
-    {
-        /// <summary>Which entity is currently taking their turn (by entity ID).</summary>
-        public int ActiveCombatantId;
-        
-        /// <summary>Index into the initiative queue (0 = first, etc).</summary>
-        public int CurrentTurnIndex;
-        
-        /// <summary>Total number of participants in this combat.</summary>
-        public int TotalParticipants;
-        
-        /// <summary>Current round counter (starts at 1).</summary>
-        public int RoundNumber;
-        
-        /// <summary>What phase is the combat in? (0=Init, 1=InProgress, 2=Ended).</summary>
-        public int CombatPhase;
-    }
-
-    /// <summary>
     /// Recent combat action stored for event replay and logging.
     /// Transient component, cleared each turn.
     /// </summary>

@@ -1,0 +1,4 @@
+﻿<Solution>
+  <Project Path="DunGen.Runtime.csproj" />
+  <Project Path="DunGen.Tests.csproj" />
+</Solution>

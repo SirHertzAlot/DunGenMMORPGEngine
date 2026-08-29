@@ -62,6 +62,20 @@ namespace DunGen.Events
             _events.Add((@event, typeName, _currentFrame));
         }
 
+        /// <summary>Record an event discovered at runtime by the event bus.</summary>
+        public void RecordPublishedEvent(object @event)
+        {
+            if (@event == null)
+                return;
+
+            var eventType = @event.GetType();
+            string typeName = eventType.Name;
+            if (typeName.EndsWith("EventData"))
+                typeName = typeName.Substring(0, typeName.Length - 9);
+
+            _events.Add((@event, typeName, ExtractFrameNumber(@event, eventType)));
+        }
+
         /// <summary>Advance frame counter.</summary>
         public void AdvanceFrame()
         {
@@ -94,8 +108,8 @@ namespace DunGen.Events
                 var action = _actions[i];
                 sb.AppendLine($"    {{");
                 sb.AppendLine($"      \"frame\": {action.FrameNumber},");
-                sb.AppendLine($"      \"type\": \"{action.ActionType}\",");
-                sb.AppendLine($"      \"params\": {action.Params},");
+                sb.AppendLine($"      \"type\": \"{EscapeJson(action.ActionType ?? string.Empty)}\",");
+                sb.AppendLine($"      \"params\": {NormalizeJsonObject(action.Params)},");
                 sb.AppendLine($"      \"rngBefore\": {action.RNGStateBefore},");
                 sb.AppendLine($"      \"rngAfter\": {action.RNGStateAfter}");
                 sb.AppendLine($"    }}{(i < _actions.Count - 1 ? "," : "")}");
@@ -141,16 +155,7 @@ namespace DunGen.Events
                 
                 sb.Append($"\"{field.Name}\":");
                 
-                if (value == null)
-                    sb.Append("null");
-                else if (value is string str)
-                    sb.Append($"\"{str}\"");
-                else if (value is bool b)
-                    sb.Append(b ? "true" : "false");
-                else if (value is int[] intArr || value is float[] floatArr)
-                    sb.Append(SerializeArray(value));
-                else
-                    sb.Append(value);
+                sb.Append(SerializeValue(value));
                 
                 if (i < fields.Length - 1)
                     sb.Append(",");
@@ -160,16 +165,72 @@ namespace DunGen.Events
             return sb.ToString();
         }
 
-        /// <summary>Serialize arrays to JSON.</summary>
-        private string SerializeArray(object arr)
+        private string SerializeValue(object value)
         {
-            if (arr is int[] intArr)
-                return $"[{string.Join(",", intArr)}]";
-            if (arr is float[] floatArr)
-                return $"[{string.Join(",", floatArr)}]";
-            if (arr is string[] strArr)
-                return $"[{string.Join(",", strArr.Select(s => $"\"{s}\""))}]";
-            return "[]";
+            if (value == null)
+                return "null";
+
+            if (value is Array arr)
+                return SerializeArray(arr);
+
+            switch (Type.GetTypeCode(value.GetType()))
+            {
+                case TypeCode.String:
+                case TypeCode.Char:
+                    return $"\"{EscapeJson(value.ToString())}\"";
+                case TypeCode.Boolean:
+                    return (bool)value ? "true" : "false";
+                case TypeCode.Byte:
+                case TypeCode.SByte:
+                case TypeCode.Int16:
+                case TypeCode.UInt16:
+                case TypeCode.Int32:
+                case TypeCode.UInt32:
+                case TypeCode.Int64:
+                case TypeCode.UInt64:
+                case TypeCode.Single:
+                case TypeCode.Double:
+                case TypeCode.Decimal:
+                    return Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "null";
+            }
+
+            return $"\"{EscapeJson(value.ToString())}\"";
+        }
+
+        private static string EscapeJson(string value)
+        {
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\r")
+                .Replace("\t", "\\t");
+        }
+
+        /// <summary>Serialize arrays to JSON.</summary>
+        private string SerializeArray(Array arr)
+        {
+            return $"[{string.Join(",", arr.Cast<object>().Select(SerializeValue))}]";
+        }
+
+        private static string NormalizeJsonObject(string json)
+        {
+            return string.IsNullOrWhiteSpace(json) ? "{}" : json;
+        }
+
+        private uint ExtractFrameNumber(object evt, Type eventType)
+        {
+            var field = eventType.GetField("FrameNumber", BindingFlags.Public | BindingFlags.Instance);
+            if (field == null)
+                return _currentFrame;
+
+            var value = field.GetValue(evt);
+            return value switch
+            {
+                uint frame => frame,
+                int frame when frame >= 0 => (uint)frame,
+                _ => _currentFrame
+            };
         }
 
         /// <summary>Clear all logs.</summary>

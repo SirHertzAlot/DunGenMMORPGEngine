@@ -14,6 +14,7 @@ namespace DunGen.Events
         public static EventBus Instance => _instance ??= new EventBus();
 
         private readonly Dictionary<Type, List<Delegate>> _listeners = new();
+        private readonly List<Action<object, Type>> _globalListeners = new();
         private ulong _nextEventId = 1;
 
         public EventBus()
@@ -43,6 +44,16 @@ namespace DunGen.Events
         }
 
         /// <summary>
+        /// Subscribe to every published event for replay logs, debugging, and telemetry.
+        /// The returned action removes the listener.
+        /// </summary>
+        public Action SubscribeAll(Action<object, Type> handler)
+        {
+            _globalListeners.Add(handler);
+            return () => _globalListeners.Remove(handler);
+        }
+
+        /// <summary>
         /// Publish an event immediately to all subscribers.
         /// </summary>
         public void Publish<T>(T @event) where T : struct
@@ -54,6 +65,18 @@ namespace DunGen.Events
                 {
                     if (handler is Action<T> typedHandler)
                         typedHandler(@event);
+                }
+            }
+
+            for (int i = 0; i < _globalListeners.Count; i++)
+            {
+                try
+                {
+                    _globalListeners[i](@event, eventType);
+                }
+                catch
+                {
+                    // Telemetry observers must never break deterministic gameplay.
                 }
             }
         }
@@ -72,6 +95,7 @@ namespace DunGen.Events
         public void Clear()
         {
             _listeners.Clear();
+            _globalListeners.Clear();
             _nextEventId = 1;
         }
 

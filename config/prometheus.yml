@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'scylla'
+    static_configs:
+      - targets: ['scylla:9180']
+
+  - job_name: 'authoritative'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['authoritative:8080']
+
+# Add service scrape targets as you stand up metrics endpoints:
+# - Unity headless active session and simulation metrics
+# - admin gateway onboarding/UAC/ACL/shell-viewer metrics
+# - Redis/Postgres exporters where needed

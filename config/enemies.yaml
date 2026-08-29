@@ -148,6 +148,31 @@ enemies:
       - "Slam"
     xp_reward: 150
 
+# Visual generation settings
+# YAML remains the authority for which archetypes the spawn pipeline prepares.
+visuals:
+  spawnPool:
+    defaultInstancesPerArchetype: 1
+    archetypes:
+      - archetype: "hero"
+        count: 1
+      - archetype: "bandit"
+        count: 4
+      - archetype: "rogue"
+        count: 3
+      - archetype: "barbarian"
+        count: 2
+      - archetype: "knight"
+        count: 2
+
+  enemyArchetypes:
+    goblin: "bandit"
+    orc: "barbarian"
+    skeleton: "knight"
+    vampire: "mage"
+    giant_spider: "rogue"
+    zombie: "bandit"
+
 # Encounter difficulty settings
 encounters:
   easy:

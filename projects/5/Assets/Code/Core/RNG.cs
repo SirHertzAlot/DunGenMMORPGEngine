@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace DunGen.Core
+namespace DunGen.Simulation.RNG
 {
     /// <summary>
     /// Deterministic, seed-based random number generator.
@@ -14,12 +14,20 @@ namespace DunGen.Core
         private const ulong C = 1442695040888963407UL;
         
         private ulong _state;
-        private readonly ulong _seed;
+        private ulong _seed;
+
+        public DeterministicRNG() : this(0UL)
+        {
+        }
 
         public DeterministicRNG(ulong seed)
         {
             _seed = seed;
             _state = seed;
+        }
+
+        public DeterministicRNG(int seed) : this((ulong)seed)
+        {
         }
 
         /// <summary>
@@ -64,6 +72,10 @@ namespace DunGen.Core
             return 1 + NextInt(sides);
         }
 
+        public int RollDice(int sides) => DiceRoll(sides);
+
+        public int RollD20() => DiceRoll(20);
+
         /// <summary>
         /// Rolls multiple dice and returns sum (e.g., 2d6, 3d4+5).
         /// </summary>
@@ -83,10 +95,23 @@ namespace DunGen.Core
             _state = _seed;
         }
 
+        public void SetSeed(ulong seed)
+        {
+            _seed = seed;
+            _state = seed;
+        }
+
+        public void SetSeed(uint seed)
+        {
+            SetSeed((ulong)seed);
+        }
+
         /// <summary>
         /// Get current seed for this RNG instance.
         /// </summary>
         public ulong GetSeed() => _seed;
+
+        public ulong Seed => _seed;
 
         /// <summary>
         /// Get current internal state (useful for debugging/logging).

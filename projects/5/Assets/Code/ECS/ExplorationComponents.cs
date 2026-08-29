@@ -1,4 +1,5 @@
 using Unity.Entities;
+using Unity.Collections;
 using UnityEngine;
 
 namespace DunGen.ECS.Exploration
@@ -33,8 +34,9 @@ namespace DunGen.ECS.Exploration
         public int CurrentXP;
         public int XPToNextLevel;
         public int Level;
+        public int LastRewardedCombatSessionId;
 
-        public bool CanLevelUp() => CurrentXP >= XPToNextLevel;
+        public bool CanLevelUp() => XPToNextLevel > 0 && CurrentXP >= XPToNextLevel;
 
         public void LevelUp()
         {
@@ -72,7 +74,7 @@ namespace DunGen.ECS.Exploration
     public struct ItemComponent : IComponentData
     {
         public int ItemId;
-        public string ItemName;
+        public FixedString64Bytes ItemName;
         public int Quantity;
         public bool IsEquipped;
         public bool IsOnGround;

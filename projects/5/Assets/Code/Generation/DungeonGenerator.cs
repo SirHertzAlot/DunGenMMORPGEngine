@@ -1,5 +1,8 @@
+using System.Collections.Generic;
+using DunGen.ECS.Components;
 using DunGen.ECS.Exploration;
 using DunGen.Simulation.RNG;
+using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 
@@ -18,24 +21,50 @@ namespace DunGen.ECS.Generation
             _rng = new DeterministicRNG(seed);
         }
 
-        /// <summary>Generate a dungeon level (returns metadata, actual tiles stored separately).</summary>
+        /// <summary>Generate a dungeon level and its summary metadata.</summary>
         public DungeonLevelComponent GenerateLevel(int levelNumber, int width = 80, int height = 24)
         {
             // Create 3-5 rooms
             int roomCount = _rng.RollDice(3) + 2;  // 2-5 rooms
             
+            int seedEnemyVariance = (int)(_rng.Seed % 3);
+            int seedLootVariance = (int)((_rng.Seed / 3) % 2);
+
             var level = new DungeonLevelComponent
             {
                 LevelNumber = levelNumber,
                 Width = width,
                 Height = height,
-                Seed = _rng.Seed,
-                EnemyCount = roomCount * 2,  // ~2 enemies per room
-                LootCount = roomCount,       // ~1 loot per room
+                Seed = (int)_rng.Seed,
+                EnemyCount = roomCount * 2 + seedEnemyVariance,  // ~2 enemies per room
+                LootCount = roomCount + seedLootVariance,        // ~1 loot per room
                 IsGenerated = true
             };
 
             return level;
+        }
+
+        public List<DungeonTile> GenerateTiles(int levelNumber, int width = 80, int height = 24)
+        {
+            var tiles = new List<DungeonTile>(width * height);
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    bool isBorder = x == 0 || y == 0 || x == width - 1 || y == height - 1;
+                    tiles.Add(new DungeonTile
+                    {
+                        TileType = isBorder ? 0u : 1u,
+                        LevelNumber = levelNumber,
+                        GridX = x,
+                        GridY = y,
+                        IsWalkable = !isBorder
+                    });
+                }
+            }
+
+            return tiles;
         }
 
         /// <summary>Get a random walkable position.</summary>
@@ -46,10 +75,9 @@ namespace DunGen.ECS.Generation
             return (x, y);
         }
 
-        /// <summary>Check if position is walkable (simplified - no actual tile data).</summary>
+        /// <summary>Check if position is walkable inside the generated dungeon bounds.</summary>
         public bool IsWalkable(int x, int y, int width, int height)
         {
-            // Simple: within bounds and not on edge
             return x > 0 && x < width - 1 && y > 0 && y < height - 1;
         }
 
@@ -93,16 +121,25 @@ namespace DunGen.ECS.Generation
             if (_generator == null)
                 return;
 
-            // Check for any level that needs generation
-            Entities
-                .WithoutBurst()
-                .ForEach((ref DungeonLevelComponent level) =>
+            var query = EntityManager.CreateEntityQuery(typeof(DungeonLevelComponent));
+            using var entities = query.ToEntityArray(Allocator.Temp);
+            using var levels = query.ToComponentDataArray<DungeonLevelComponent>(Allocator.Temp);
+
+            for (int i = 0; i < entities.Length; i++)
+            {
+                var level = levels[i];
+                if (level.IsGenerated)
+                    continue;
+
+                level = _generator.GenerateLevel(level.LevelNumber, level.Width, level.Height);
+                EntityManager.SetComponentData(entities[i], level);
+
+                foreach (var tile in _generator.GenerateTiles(level.LevelNumber, level.Width, level.Height))
                 {
-                    if (!level.IsGenerated)
-                    {
-                        level = _generator.GenerateLevel(level.LevelNumber);
-                    }
-                }).Run();
+                    var tileEntity = EntityManager.CreateEntity(typeof(DungeonTile));
+                    EntityManager.SetComponentData(tileEntity, tile);
+                }
+            }
         }
     }
 }
