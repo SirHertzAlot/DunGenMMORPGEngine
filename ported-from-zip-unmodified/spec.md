@@ -1,0 +1,1056 @@
+# DunGen   3D Terrain Grid Builder & Interactive Game Object Generator
+
+A web application that generates and manages interactive 3D terrain grids using Three.js and Perlin noise with advanced erosion simulation capabilities, plus an interactive game object generation system for creating NPCs, Items, Dungeons, Quests, and Boss Battles. The system allows users to create n×n terrain grids where each cell represents an independent terrain tile with configurable settings, and generate game content using graph-based procedural generation with YAML-based backend services and global tier management.
+
+## Authentication System
+
+### Internet Identity Integration
+- Internet Identity authentication system for secure user access
+- Principal-based user identification and session management
+- Automatic principal caching using localStorage for persistent sessions
+- Session restoration on app reload without requiring re-authentication
+- Secure logout functionality that clears cached authentication data
+
+### Offline-First Architecture
+- **Immediate UI rendering in main.tsx and App.tsx without any backend or actor initialization**
+- **Complete removal of all runtime controller hooks including useActorInitialization, useActor, and background initialization calls**
+- **App startup renders entirely offline with no backend connection attempts, no actor creation, and no principal-based calls**
+- **Router and all UI components render immediately on app startup with zero blocking initialization**
+- **Static local state management for InitializationOverlay and ConnectionBanner without querying connection status**
+- **DebugWidget mounts immediately showing static startup logs with local messages like "No backend connected — local-only mode active"**
+- **Simplified App.tsx routing and state rendering only static pages (GridEditor, FileManager, GameObjectGenerator, GraphGenerator) immediately on load**
+- **No page imports or interactions with backend actor directly, displaying offline-appropriate messages when data queries return empty**
+- **Enhanced debug logging showing local-only mode status and offline functionality**
+- **Real-time connection diagnostics in DebugWidget showing offline status without blocking UI**
+- **Immediate UI rendering for all components with graceful degradation when operating in offline mode**
+- **Fixed main.tsx initialization to prevent white screen issues by ensuring proper provider composition, error boundary implementation, and immediate rendering without blocking on any initialization processes**
+- **Enhanced main.tsx with proper React 18 StrictMode compatibility, error handling for provider failures, and immediate DOM rendering without waiting for any async operations**
+- **Corrected main.tsx provider hierarchy to prevent context provider conflicts and ensure all components have access to required contexts immediately on startup**
+- **Fixed main.tsx rendering logic to handle initialization errors gracefully and display appropriate fallback UI when providers fail to initialize**
+
+### Login Page
+- Dedicated Login page accessible via `/login` route
+- Internet Identity authentication interface with clear login instructions
+- Display authenticated user's principal ID upon successful login
+- **Fixed login flow to properly update authentication state after successful authentication**
+- Automatic redirect to Admin Dashboard after successful authentication
+- Mobile-first responsive design matching DunGen styling and theme
+- Error handling for authentication failures with user-friendly messages and recovery suggestions
+- **Enhanced debug logging showing Internet Identity authentication flow progress and principal detection**
+
+### Access Control
+- Redirect unauthenticated users to Login page when accessing restricted features
+- **Fixed authentication state verification in Header.tsx to properly show login/logout status**
+- Protected routes and actions requiring authentication:
+  - File uploads and ZIP extraction in File Manager
+  - Grid save/load operations
+  - Terrain editing and configuration changes
+  - Game object generation operations
+  - YAML backend service operations
+  - Global Tables management
+  - World loot table generation and management
+  - **Dungeon generation operations and tileset configuration management**
+- Allow public access to view-only features like browsing terrain previews
+- Seamless user experience with offline-first functionality
+- **Enhanced access control that proceeds to limited functionality in offline mode**
+- **Advanced debug logging for access control decisions with offline mode verification**
+
+## Core Features
+
+### Admin Dashboard
+- Central navigation hub accessible via `/admin` route (authentication required)
+- Admin Dashboard page with proper loading behavior and error-free rendering
+- Large centered **"DunGen"** logo styled consistently with the application's theme, matching header and border styles
+- Prominent navigation link/button to the **3D Terrain Generator** page positioned under the logo, styled consistently with other navigation elements (matching header navigation styling)
+- Prominent navigation link/button to the **File Manager** page positioned under the terrain generator link, styled consistently with other navigation elements
+- Prominent navigation link/button to the **Game Object Generator** page positioned under the file manager link, styled consistently with other navigation elements
+- Prominent navigation link/button to the **Generic Visualizer** page positioned under the game object generator link, styled consistently with other navigation elements
+- Prominent navigation link/button to the **YAML Backend Service** page positioned under the generic visualizer link, styled consistently with other navigation elements
+- Prominent navigation link/button to the **Global Tables Manager** page positioned under the YAML backend service link, styled consistently with other navigation elements
+- Mobile-first responsive layout using Tailwind CSS breakpoints (sm, md, lg, xl) that adapts properly to all screen sizes
+- Consistent dark mode theme and Tailwind styling matching the existing application design
+- Accessible from main header navigation or direct route access
+- Application content displayed in English
+- **Immediate rendering with graceful handling of offline mode and appropriate fallback behavior**
+- **Enhanced debug widget integration showing offline status and local-only mode**
+
+### YAML Backend Service System
+- **Dedicated YAML Backend Service page accessible via `/yaml-service` route with immediate rendering**
+- Clear page title "YAML Backend Service" prominently displayed
+- **Generic YAML-based backend responder system capable of receiving partial YAML configuration files from other backend services**
+- **Frontend parsing stubs to visualize and simulate request/response cycles for YAML files locally**
+- **YAML Configuration Processing Interface:**
+  - File input interface for uploading partial YAML configuration files
+  - Client-side YAML parsing using reliable YAML parser library with validation
+  - Real-time YAML structure preview showing parsed configuration
+  - Support for partial YAML merging with existing templates
+  - Configuration validation with specific error reporting for malformed YAML
+- **Request/Response Simulation System:**
+  - Mock backend service interface for simulating YAML processing requests
+  - Request queue visualization showing pending YAML processing tasks
+  - Response preview displaying completed YAML configurations
+  - Simulated processing time with progress indicators
+  - Error simulation for testing failure scenarios
+- **YAML Merging and Completion Engine:**
+  - Merge partial YAML files into full game object YAML configurations
+  - Template-based completion using predefined YAML structures
+  - Support for nested YAML property merging with conflict resolution
+  - Validation of completed YAML configurations against schema
+  - Export completed configurations for use by other services
+- **Lightweight Queue System (Frontend-Simulated, Backend-Ready):**
+  - Message queue behavior simulation to decouple system components
+  - Queue visualization showing pending, processing, and completed tasks
+  - Priority-based task ordering with configurable priority levels
+  - Queue status monitoring with real-time updates
+  - Scalability and availability simulation with load testing capabilities
+- **Service Integration Interface:**
+  - API endpoints simulation for receiving YAML requests from other services
+  - Response formatting for returning completed configurations
+  - Service discovery simulation for backend service communication
+  - Health check endpoints for service availability monitoring
+- **YAML Template Management:**
+  - Template library for common game object YAML structures
+  - Template selection interface for different entity types
+  - Custom template creation and editing capabilities
+  - Template versioning and management system
+- Real-time progress feedback during YAML processing operations
+- Mobile-first responsive design matching DunGen styling and UI consistency
+- Touch-optimized interactions for mobile YAML service management
+- Consistent navigation integration with existing header and routing system
+- Authentication required for all YAML service operations with fallback
+- **Immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **Enhanced debug logging for YAML service operations and offline mode verification**
+
+### Global Tables Manager System
+- **Dedicated Global Tables Manager page accessible via `/global-tables` route with immediate rendering**
+- Clear page title "Global Tables Manager" prominently displayed
+- **RPG Dataset Integration System:**
+  - **Static reference dictionary integration using the provided RPG_DATASET as backend context for loot generation**
+  - **Weapon and attack type compatibility enforcement ensuring only valid attack types are generated for specific weapon categories**
+  - **Sentient item attribute system determining personality traits, behavior states, and evolution paths based on dataset references**
+  - **Faction influence application using alignment mappings, ideology systems, territory bonuses, and relationship stance modifiers**
+  - **Player archetype and playstyle compatibility system ensuring generated loot respects character builds and preferences**
+  - **Sentient conflict dynamics system creating interactive world elements based on personality clashes and faction relationships**
+  - **Context-aware loot generation leveraging dataset relationships for weapon-attack compatibility, faction-alignment matching, and archetype-appropriate rewards**
+- **Massive World Loot Table Generation System:**
+  - **Procedural dictionary-based loot generation system that creates millions of items to populate the entire game world**
+  - **Tier-based generation system with common, rare, epic, and legendary tiers using keyed attributes for attack, defense, elemental, and special traits**
+  - **Enhanced "excellent" version generation system within each tier featuring:**
+    - **Stat buffs and resistances to physical and elemental attacks**
+    - **Unique debuff abilities and status effects**
+    - **World-breaking powers including reduced cooldowns, efficient mana usage, ally summoning capabilities, and area-of-effect ultimate abilities**
+  - **Massive scale generation capable of producing millions of unique loot items with procedural variation**
+  - **Dictionary-based attribute system with keyed categories for systematic loot generation**
+  - **Tier progression system where each higher tier includes more powerful and diverse attributes**
+  - **RPG Dataset-enhanced generation ensuring weapon-attack type compatibility, faction-appropriate bonuses, and archetype-aligned attributes**
+  - **Name Uniqueness Validation System:**
+    - **Automatic duplicate name detection during massive world loot table generation**
+    - **Real-time uniqueness validation that prevents duplicate names across all tiers and categories**
+    - **Context-aware fallback naming algorithm that appends identifiers (weapon type, faction, rarity) for human-readable uniqueness**
+    - **Intelligent name generation using weapon category, attack type, faction alignment, and tier information to create unique identifiers**
+    - **Duplicate resolution system that automatically generates alternative names when conflicts are detected**
+    - **Name collision tracking with detailed statistics on duplicates found and resolved during generation**
+    - **Fallback naming patterns that maintain readability while ensuring uniqueness across millions of items**
+    - **Name validation integration with RPG dataset context to ensure generated names respect weapon-attack compatibility and faction themes**
+- **Queue-Based Async World Loot Generator:**
+  - **Asynchronous queue system that incrementally populates the massive world loot table without freezing the UI**
+  - **Background processing with batch generation to handle millions of items efficiently**
+  - **Real-time progress tracking showing generation status, items created, and completion percentage**
+  - **Queue status monitoring with detailed progress indicators and performance metrics**
+  - **Incremental caching system that stores generated items progressively**
+  - **UI responsiveness maintained during large-scale generation operations**
+  - **Debug logging integration showing generation progress, batch completion, and performance statistics**
+  - **Context-aware batch processing leveraging RPG dataset for consistent weapon-attack compatibility and faction-alignment enforcement**
+  - **Name uniqueness validation integrated into batch processing with duplicate detection and resolution tracking**
+  - **Real-time duplicate statistics display showing duplicates found and resolved during async generation**
+- **World Loot Table UI Interface:**
+  - **Comprehensive table interface for viewing the entire generated world loot dataset**
+  - **Advanced filtering system by tier, attribute type, item category, excellent status, weapon type, attack compatibility, faction alignment, and archetype suitability**
+  - **Scrollable table view with pagination for navigating millions of generated items**
+  - **Search functionality for finding specific items within the massive dataset including RPG dataset reference searches**
+  - **Preview/sample set display showing representative items from each tier and category with dataset context information**
+  - **Real-time table updates as new items are generated by the async queue system**
+  - **Item detail view showing complete attribute breakdown, tier information, RPG dataset references, weapon-attack compatibility, faction bonuses, and archetype alignment**
+  - **Name Uniqueness Summary Display:**
+    - **Real-time duplicate detection summary showing "0 duplicates found / X duplicates resolved" during table generation**
+    - **Detailed uniqueness statistics panel displaying total items generated, unique names created, and duplicate resolution count**
+    - **Name collision report showing which naming patterns triggered fallback algorithms**
+    - **Uniqueness validation status indicator showing current validation state and any ongoing resolution processes**
+    - **Summary of fallback naming patterns used and their effectiveness in maintaining uniqueness**
+- **World Loot Export System:**
+  - **Full YAML export functionality for the complete world loot table including RPG dataset reference mappings**
+  - **Complete JSON export system for all generated loot items with contextual data from RPG dataset integration**
+  - **Batch export capabilities for handling massive datasets efficiently**
+  - **Export filtering options to generate subsets of the world loot table based on RPG dataset criteria**
+  - **Export progress tracking for large dataset operations**
+  - **Export format optimization for game system integration and reuse including RPG dataset context preservation**
+  - **Enhanced export system including weapon-attack compatibility tables, faction influence mappings, sentient item evolution paths, and archetype-playstyle compatibility matrices**
+  - **Name uniqueness metadata export including duplicate resolution statistics and fallback naming pattern usage**
+- **Global Tables Definition System for game object tiers and world population:**
+  - Tier management interface for defining common, rare, epic, and legendary game objects
+  - YAML-configurable tier definitions with customizable properties
+  - Global accessibility for all generator and designer services
+  - Dynamic world population based on tier configurations
+  - **RPG dataset-enhanced tier definitions incorporating weapon categories, attack types, faction alignments, and archetype preferences**
+- **Tier Configuration Interface:**
+  - Visual tier editor for creating and modifying game object tiers
+  - Tier property configuration including rarity percentages, stat ranges, and special attributes
+  - Preview system showing tier effects on generated game objects
+  - Tier validation with error reporting for invalid configurations
+  - **Loot attribute configuration interface for defining attribute categories and tier progression rules**
+  - **RPG dataset integration interface for configuring weapon-attack compatibility rules, faction influence parameters, and archetype alignment settings**
+- **YAML-Based Tier Management:**
+  - YAML file import/export for tier configurations
+  - Client-side YAML parsing and validation for tier definitions
+  - Template-based tier creation using predefined YAML structures
+  - Bulk tier operations for managing multiple tiers simultaneously
+  - **YAML-based loot attribute table definitions with category-specific templates**
+  - **Enhanced YAML export including RPG dataset reference mappings and contextual generation rules**
+- **World Population Dynamics:**
+  - Population rules configuration for different game areas
+  - Tier distribution settings for balanced world generation
+  - Dynamic spawning rules based on tier availability
+  - Population density controls with area-specific settings
+  - **Loot drop rate configuration based on tier and area settings**
+  - **Faction territory influence on loot generation with alignment-based bonuses and penalties**
+- **Tier Integration System:**
+  - Integration with Game Object Generator for tier-based generation
+  - Service API for other components to query tier information
+  - Real-time tier updates affecting active generation processes
+  - Tier inheritance and override capabilities for specialized areas
+  - **World loot table integration with game object generation workflows**
+  - **RPG dataset integration providing context-aware generation parameters for all connected services**
+- **Global Table Storage and Retrieval:**
+  - Persistent storage of tier configurations and global tables
+  - Version control for tier definition changes
+  - Backup and restore functionality for table configurations
+  - Multi-user collaboration support for tier management
+  - **Massive world loot table persistence with efficient storage and retrieval systems**
+  - **RPG dataset reference storage and indexing for fast context-aware lookups during generation**
+  - **Name uniqueness validation data storage including duplicate resolution history and fallback pattern effectiveness**
+- **Tier Analytics and Monitoring:**
+  - Usage statistics for different tier configurations
+  - Generation frequency analysis for tier balancing
+  - Performance monitoring for tier-based operations
+  - Tier effectiveness reporting and optimization suggestions
+  - **World loot generation analytics with item distribution statistics, tier balance monitoring, and generation performance metrics**
+  - **RPG dataset utilization analytics showing weapon-attack compatibility usage, faction influence distribution, and archetype alignment statistics**
+  - **Name uniqueness analytics showing duplicate detection rates, resolution success rates, and fallback naming pattern effectiveness**
+- Real-time progress feedback during tier management and world loot generation operations
+- Mobile-first responsive design matching DunGen styling and UI consistency
+- Touch-optimized interactions for mobile tier management and loot table browsing
+- Consistent navigation integration with existing header and routing system
+- Authentication required for all global tables operations with fallback
+- **Immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **Enhanced debug logging for global tables operations and offline mode verification**
+
+### Generic Visualizer System
+- **Dedicated Generic Visualizer page accessible via `/visualizer` route with immediate rendering**
+- Clear page title "Generic Visualizer" prominently displayed
+- **Entity type selector allowing users to choose from multiple entity categories:**
+  - **Character** - Visualize character models with animations and equipment
+  - **NPC** - Visualize non-player character models with behaviors and stats
+  - **Item** - Visualize weapons, armor, consumables, and other game items
+  - **Terrain** - Visualize terrain tiles and environmental assets
+  - **Dungeon** - Visualize dungeon layouts, rooms, and architectural elements
+- **YAML Configuration Loading System:**
+  - File input interface for selecting YAML configuration files from local directory
+  - Client-side YAML parsing using a reliable YAML parser library
+  - Configuration validation and error reporting for malformed YAML
+  - Support for model references, materials, transforms, and metadata extraction
+  - Real-time configuration preview showing parsed structure
+- **3D Model Loading and Rendering:**
+  - Automatic detection and loading of 3D model files (GLB, GLTF, OBJ, FBX) from specified directory
+  - Integration with existing Three.js model loading pipeline for consistent file handling
+  - Support for multiple models per entity with proper scene composition
+  - Material and texture loading based on YAML configuration
+  - Proper model positioning and scaling according to configuration transforms
+- **Interactive 3D Scene Controls:**
+  - Three.js scene with camera orbit controls for model inspection
+  - Basic transformation controls for position, rotation, and scale adjustment
+  - Real-time parameter adjustment with immediate visual feedback
+  - Camera reset and auto-focus functionality for optimal viewing
+  - Enhanced touch interactions for mobile device compatibility
+- **Visualizer Service API:**
+  - Modular service interface allowing other components to invoke the visualizer
+  - Support for programmatic entity type and directory path specification
+  - Integration points for Designer and Generator modules to call visualization
+  - Session-based entity loading with single entity type per session
+  - Service method for external modules to trigger visualization with specific parameters
+- **Error Handling and Feedback:**
+  - Comprehensive error reporting for missing configuration files
+  - Asset validation with specific error messages for missing 3D models
+  - YAML parsing error display with line number and syntax information
+  - Model loading failure feedback with recovery suggestions
+  - Visual indicators for successful configuration and asset loading
+- **Directory and File Management:**
+  - Directory browser interface for selecting entity configuration folders
+  - File listing with preview of available YAML configurations and 3D assets
+  - Support for nested directory structures with proper path resolution
+  - Automatic asset discovery within selected directories
+- Real-time progress feedback during configuration loading and model rendering
+- Mobile-first responsive design matching DunGen styling and UI consistency
+- Touch-optimized interactions for mobile visualization
+- Consistent navigation integration with existing header and routing system
+- **Immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **Enhanced debug logging for visualization operations and offline mode verification**
+
+### Game Object Generator System
+- **Dedicated Game Object Generator page accessible via `/game-object-generator` route with immediate rendering**
+- Clear page title "Game Object Generator" prominently displayed
+- **Enhanced initialization flow that renders UI immediately with graceful handling of offline mode**
+- **Stabilized UI rendering with immediate display and offline mode guards**
+- **Enhanced proper loading states with overlay displays and fallback to offline functionality**
+- **Advanced error boundaries with debug messages visible in DebugWidget for UI component failures**
+- **Responsive theme provider and router integration ensuring all UI controls render properly on startup**
+- **Enhanced fixed rendering initialization order to prevent blank UI screens or missing elements on load**
+- **Generation type selector focused on story and world content:**
+  - **Generate NPC** - Creates non-player characters with AI behaviors and stats
+  - **Generate Dungeon** - Creates dungeon layouts with rooms, connections, and encounters using WFC-based assembly
+  - **Generate Quest** - Creates quest objectives, rewards, and trigger conditions
+  - **Generate Boss Battle** - Creates boss encounters with special abilities and mechanics
+  - **Generate Raid** - Creates large-scale raid encounters with multiple phases and mechanics
+- **Enhanced Dungeon Generation System:**
+  - **YAML Tileset Configuration Loading:**
+    - File input interface for uploading YAML tileset configuration files
+    - Robust client-side YAML parsing with comprehensive error handling and validation
+    - Support for `tiles`, `adjacency`, and `map_constraints` sections from YAML configuration
+    - Real-time YAML structure preview showing parsed tileset data
+    - Configuration validation with specific error reporting for malformed tileset YAML
+    - Debug output for tileset parsing progress and validation results
+  - **WFC-Based Dungeon Assembly Process:**
+    - Wave Function Collapse algorithm implementation for dungeon layout generation
+    - Structural pass processing using tileset adjacency rules and constraints
+    - Decoration pass processing for detailed dungeon element placement
+    - Proper handling of tile compatibility and constraint satisfaction
+    - Real-time WFC generation progress tracking with detailed status updates
+    - Error handling for WFC generation failures with specific diagnostic information
+  - **Dungeon Layout Visualization:**
+    - Integration with Generic Visualizer for dungeon layout preview display
+    - 3D dungeon layout rendering using Three.js with proper tile positioning
+    - Interactive dungeon exploration with camera controls and navigation
+    - Visual representation of generated rooms, corridors, and connections
+    - Real-time updates during dungeon generation process
+  - **Enhanced Status Indicators:**
+    - Clear loading indicators during YAML parsing and WFC generation
+    - Success confirmation with generation completion metrics
+    - Detailed error reporting for parsing failures, WFC issues, or visualization problems
+    - Progress tracking for each generation phase (parsing, WFC, visualization)
+    - Debug output integration showing tileset loading, constraint processing, and generation results
+- **Deterministic Graph Traversal Engine as a reusable frontend module integrated into the Game Object Generator page**
+- **Graph JSON data loading system supporting graph structure with `entry`, `nodes`, `id`, `weight`, `emit`, and `next` properties**
+- **Deterministic RNG implementation via `mulberry32(seed)` function for consistent reproduction of generation results**
+- **Sequential node traversal from `entry` point, accumulating emitted component data into an event array**
+- **Weighted random selection (≈50% pseudo-randomness) for branching decisions at `choice` nodes using deterministic RNG**
+- **ECS-compatible component event output system generating structured list of component events**
+- **Resolved entity object creation from accumulated component data with proper ECS structure**
+- **Integration with Global Tables for tier-based generation:**
+  - Tier selection interface for choosing rarity levels during generation
+  - Automatic tier application based on Global Tables configuration
+  - Tier-specific parameter modification during graph traversal
+  - Real-time tier preview showing effects on generated objects
+  - **RPG dataset-enhanced tier application ensuring weapon-attack compatibility, faction alignment, and archetype suitability during generation**
+- **YAML Backend Service Integration:**
+  - Support for partial YAML configuration input from backend services
+  - YAML merging capabilities for completing partial configurations
+  - Queue system integration for processing YAML requests
+  - Response formatting for returning completed YAML configurations
+- **Fixed output display system with dedicated panels for viewing generation results:**
+  - **"Resolved Entity" panel showing formatted ECS component key-value display with friendly titles and clear structure**
+  - **"Raw JSON" panel displaying complete JSON events and entity structure with syntax highlighting**
+  - **"YAML Output" panel displaying completed YAML configuration with proper formatting**
+  - **Both output panels update reactively once generation completes with proper React state management**
+  - **Fixed JSON output rendering that reliably displays at the bottom of the page after graph traversal completes**
+  - **Corrected React state storage for final generated JSON with proper state updates after traversal**
+  - **Fixed rendering logic ensuring final JSON section updates reactively and displays in collapsible/expandable output container**
+  - **Enhanced output container with proper formatting, syntax highlighting, and scroll support for large JSON outputs**
+  - **Copy-to-clipboard buttons for both resolved entity and raw JSON outputs with user feedback**
+  - **Consistent styling matching existing DunGen theme with proper responsive layout**
+  - **Panel or tab-based interface for easy switching between output views**
+  - **Fixed state management ensuring the graphTraversal function's return value is correctly captured and stored in component state**
+  - **Enhanced debug logging to confirm when generation completes and when the output state updates**
+  - **Verified output display correctly handles both formatted and raw JSON views with live updates and no silent render failures**
+  - **Comprehensive error handling for output rendering failures with specific error messages and recovery suggestions**
+  - **Enhanced output panels including RPG dataset context information showing weapon-attack compatibility, faction influences, and archetype alignment for generated entities**
+- **Enhanced debugLogger integration capturing graph traversal results, final JSON output, state updates, and errors for comprehensive offline troubleshooting**
+- **Live traversal logs integration with Debug Widget for real-time stream updates and ECS result inspection**
+- **Deep debug output for each traversal stage including node entry, RNG result, emitted data, and next node selection**
+- **Real-time graph traversal visualization displaying node selection, weight calculations, and path decisions**
+- **Final ECS component output logging with detailed component breakdown and JSON structure**
+- **Enhanced error handling and debugging for JSON output rendering failures with specific error messages and recovery suggestions**
+- Real-time progress feedback during game object generation operations
+- **Fully functional generation execution controls with properly responding Generate, Copy JSON, and Toggle Raw/Formatted View buttons**
+- **All interactive generation workflows (NPCs, bosses, dungeons, quests, raids) are functional with full deterministic graph traversal output**
+- Parameter configuration interface for each generation type with category-specific settings
+- Mobile-first responsive design matching DunGen styling and UI consistency
+- Touch-optimized interactions for mobile game object generation
+- Consistent navigation integration with existing header and routing system
+- Authentication required for all game object generation operations with fallback
+- **Immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **Enhanced debug logging for game object generation operations and offline mode verification**
+
+### File Manager System
+- **Dedicated File Manager page accessible via `/file-manager` route with immediate rendering**
+- Upload interface supporting multiple 3D asset file formats: `.glb`, `.gltf`, `.obj`, `.fbx`, and `.zip` files
+- **Fixed ZIP extraction functionality using JSZip library with corrected model loading pipeline that properly handles extracted files as in-memory File or Blob objects**
+- **When a ZIP file is uploaded, automatically extract all contents client-side using JSZip and convert extracted files to proper File objects with correct MIME types for Three.js loaders**
+- **Corrected unified model loading pipeline that accepts both uploaded files and extracted File objects, properly routing them to appropriate Three.js loaders (GLTFLoader, OBJLoader, FBXLoader) using proper object URL resolution for in-memory file handling**
+- **Fixed async handling with proper promise management ensuring files are parsed and previewed as soon as they are ready with individual processing queues**
+- **Detailed dual-progress reporting system showing both ZIP extraction progress (percentage of files extracted) and per-model loading progress (percentage of models successfully loaded) with real-time updates**
+- **Comprehensive progress overlay displaying extraction percentage, current file being processed, individual model loading status with per-file progress percentages, and completion metrics**
+- **Parallel task handling for ZIP extraction with proper batch decompression using Promise.all() to await all extraction promises before proceeding to model loading phase**
+- **Individual error handling per extracted file with specific error messages for each model that fails to load, including file format validation and loader-specific error reporting**
+- **Immediate display of successfully extracted and loaded files in File Manager list with rendered thumbnails generated from Three.js scenes as each model becomes ready**
+- **Fully functional interactive Three.js previews for all extracted models post-load with complete scene initialization including rotation, zoom, and lighting controls**
+- **Cross-browser compatibility and consistent extraction and loading performance on desktop and mobile devices using proper File API and blob handling**
+- **Each extracted file recorded in the file metadata collection with extractionSource field linking to the original ZIP's Blob ID and proper file type detection**
+- **Success confirmation once all extracted files are properly processed and loaded with automatic File Manager list refresh and summary of successful/failed extractions**
+- **Robust error handling and clear user messages explaining extraction or loading failures per file, specific reasons for failures, and recovery suggestions**
+- **FileMetadata creation correctly sets archiveType = #zip for ZIP uploads and relativePath for extracted files matching their internal folder path with proper directory structure preservation**
+- Drag-and-drop upload area with file type validation and size limits for all supported formats
+- File upload progress indicators and error handling for unsupported formats
+- Scrollable list or grid view displaying uploaded 3D assets and extracted files with responsive layout
+- Preview thumbnails for 3D models when available using Three.js rendering
+- **Fixed ModelPreview component with reliable Three.js-based 3D model rendering for .glb, .gltf, .obj, and .fbx files using corrected loading pipeline with proper object URL resolution for local file handling**
+- **ModelPreview component initializes complete Three.js scene with camera, orbit controls, and lighting for every model load with proper object URL handling for local files**
+- **ModelPreview component with enhanced initialization that properly handles local file processing, ensuring Three.js scene initializes correctly for offline file management**
+- **Proper Three.js loader implementation using GLTFLoader, OBJLoader, and FBXLoader with format-specific optimizations and correct object URL resolution for local File objects**
+- **Automatic scene clearing and re-rendering when new files are selected to prevent render overlap with proper disposal of previous geometries and materials**
+- **Enhanced verbosity in Three.js model loading stages with detailed progress reporting for: initialization, download, parse, texture load, mesh creation, and render complete phases**
+- **All model loader failures (GLB, GLTF, OBJ, FBX) pass their error messages and progress updates to the debugLogger utility for comprehensive error tracking**
+- **Enhanced error handling and individual file error reporting for failed model loads and descriptive user feedback per file with specific loader error messages captured and passed to debugLogger**
+- **Error capture and logging through debugLogger for failed or invalid loading stages with detailed error reporting and recovery suggestions**
+- **Responsive Three.js canvas that fits seamlessly within File Manager layout across all devices with proper interactive controls (rotation, zoom, lighting)**
+- **ModelPreview component ensures all models load with centered position and consistent scaling by positioning the model's object3D at coordinates (0, 0, 0) when added to the scene**
+- **Automatic camera and controls adjustment to center the model upon load, restoring designer's view alignment with proper bounding box calculation**
+- **Verbose debug logging for model positioning, bounding box dimensions, and centering process to facilitate debugging**
+- **Offset application when necessary to keep entire model visible while maintaining correct anchoring at origin**
+- File metadata display including:
+  - Original filename and extracted file paths with full directory structure
+  - File size (formatted in KB/MB)
+  - Upload date and time
+  - File format/type
+  - **Extraction source information linking to original zip archive**
+  - **Complete directory structure preservation with visual hierarchy indicators**
+  - **Archive type designation for extracted files**
+- Individual file management options:
+  - Delete file functionality with confirmation dialog (including extracted files)
+  - Download file option to retrieve original asset
+  - Rename file capability
+- Search and filter functionality to locate specific assets including extracted files
+- Mobile-first responsive design matching DunGen styling and UI consistency
+- Touch-optimized interactions for mobile file management
+- Consistent navigation integration with existing header and routing system
+- Authentication required for all file management operations with fallback
+- **Immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **Enhanced debug logging for file upload operations and offline mode verification**
+
+### Unified Terrain and Dungeon Generator System
+- **Unified 3D Terrain Generator page accessible via `/terrain-generator` route with immediate rendering**
+- **Mode Toggle System:**
+  - **Primary mode selector with "Terrain" and "Dungeon" options prominently displayed at the top of the interface**
+  - **Smooth transition between terrain generation and dungeon generation modes without page reload**
+  - **Mode-specific UI elements that show/hide based on current selection**
+  - **Persistent mode selection that remembers user preference during session**
+  - **Clear visual indicators showing which mode is currently active**
+- **Shared Grid Management System:**
+  - Create configurable n×n terrain grids with user-defined dimensions (authentication required)
+  - Each grid cell represents an independent terrain tile or dungeon cell with isolated settings
+  - Visual grid editor UI displaying cells in an interactive grid layout with responsive breakpoints
+  - **Horizontal responsiveness for large grids (e.g., 10x10) using CSS grid auto-fit/auto-fill with fractional units**
+  - **Scroll containment or zoom-to-fit behavior ensuring all cells are visible and properly scaled within the viewport across devices**
+  - **On mobile and narrow viewports, scrollable grid container with adaptive cell size calculation preventing overflow and maintaining consistent spacing**
+  - **Grid layout alignment with control bar and other UI elements, keeping the grid centered and responsive**
+  - Cell selection interface to access and modify individual terrain or dungeon settings optimized for touch interactions
+  - Grid configuration persistence and save/load functionality (authentication required)
+  - Performance optimization for large grid sizes across all device types
+- **Terrain Generation Mode (Per Cell):**
+  - Generate 2D Perlin noise maps to create height values for terrain
+  - Use Three.js PlaneGeometry as the base terrain mesh
+  - Apply noise values to vertex Z positions to create elevation
+  - Implement Perlin noise generator in JavaScript
+  - Independent parameter configuration per grid cell
+  - **Erosion Simulation (Per Cell):**
+    - Apply realistic erosion effects to generated terrain with independent processing for each erosion type
+    - Support five erosion types with separate UI controls and isolated processing:
+      - Hydraulic erosion: simulate rainfall, water flow, sediment transport and deposition
+      - Thermal erosion: redistribute material from steep slopes based on angle thresholds
+      - Wind erosion: simulate wind-driven sediment transport with directional effects
+      - Plateau erosion: flatten elevated areas based on height thresholds and flattening parameters
+      - River erosion: simulate water flow, pooling, and sediment transport to form lakes and riverbeds
+    - Each erosion type operates on isolated terrain data to prevent corruption
+    - Real-time erosion processing with configurable parameters per erosion type
+    - Visual feedback during erosion simulation process
+  - **Visual Rendering:**
+    - Display terrain using Three.js 3D graphics with contained viewport rendering that adapts to screen size
+    - Apply directional and ambient lighting to the scene (configurable per cell)
+    - Color terrain based on height thresholds:
+      - Blue for water (low elevations)
+      - Green for grass (medium elevations) 
+      - Gray for mountains (high elevations)
+    - Visualize water flow paths and lake formation from river erosion in real-time
+    - Individual terrain preview when clicking on grid cells
+    - Well-contained rendering within cell or preview sections with responsive sizing
+- **Dungeon Generation Mode (Per Cell):**
+  - **WFC-Based Dungeon Assembly integrated into the shared grid editor:**
+    - **YAML Tileset Configuration Loading:**
+      - File input interface for uploading YAML tileset configuration files
+      - Robust client-side YAML parsing with comprehensive error handling and validation
+      - Support for `tiles`, `adjacency`, and `map_constraints` sections from YAML configuration
+      - Real-time YAML structure preview showing parsed tileset data
+      - Configuration validation with specific error reporting for malformed tileset YAML
+      - Debug output for tileset parsing progress and validation results
+    - **Wave Function Collapse Algorithm Implementation:**
+      - Structural pass processing using tileset adjacency rules and constraints
+      - Decoration pass processing for detailed dungeon element placement
+      - Proper handling of tile compatibility and constraint satisfaction
+      - Real-time WFC generation progress tracking with detailed status updates
+      - Error handling for WFC generation failures with specific diagnostic information
+    - **Interactive Dungeon Cell Configuration:**
+      - **Model selection interface for choosing 3D dungeon tile models from uploaded assets**
+      - **Rotation controls for adjusting tile orientation within each dungeon cell**
+      - **Real-time 3D preview showing selected model with applied rotation**
+      - **Model library integration with File Manager for accessing uploaded dungeon assets**
+      - **Tile compatibility validation based on YAML configuration and selected models**
+      - **Visual feedback for valid/invalid tile placements based on adjacency rules**
+    - **Dungeon Layout Visualization:**
+      - 3D dungeon layout rendering using Three.js with proper tile positioning
+      - Interactive dungeon exploration with camera controls and navigation
+      - Visual representation of generated rooms, corridors, and connections
+      - Real-time updates during dungeon generation process
+      - **Individual dungeon cell preview showing selected models with rotation applied**
+      - **Seamless integration with terrain grid editor interface**
+- **Interactive Grid Editor with Focused Cell View:**
+  - Visual grid editor with smooth transition to focused cell editing mode optimized for mobile and desktop
+  - When a single cell is selected, the interface transitions to focus on that cell's editor view within the main layout
+  - Selected cell displays in the main editor area with full terrain or dungeon preview and controls
+  - Unselected cells appear as a vertically scrollable list positioned below the top control bar
+  - Scrollable cell list shows each unselected cell compactly with basic info (coordinates or ID)
+  - Click any cell in the scrollable list to re-select and transition focus to that cell
+  - Mobile-first responsive layout using Tailwind CSS breakpoints that updates dynamically when switching between cells without layout breakage or overflow
+  - Cell highlighting and selection feedback optimized for touch interactions
+  - Grid dimension controls (n×n size adjustment) with touch-friendly interface
+  - Performance-optimized rendering for large grids across all devices
+  - Authentication required for grid editing operations with fallback
+- **Mode-Specific Individual Cell Controls:**
+  - **Terrain Mode Controls:**
+    - Orbit camera controls for 3D scene exploration in preview mode with enhanced touch interactions (drag, pinch, and zoom)
+    - Real-time UI controls and sliders optimized for touch inputs to adjust per cell (authentication required):
+      - Noise scale parameter
+      - Terrain elevation multiplier
+      - Lighting configuration
+    - Separate erosion simulation controls organized into distinct sections with mobile-responsive layout:
+      - **Hydraulic Erosion Section**: Erosion iterations input (0-500 range), Erosion strength slider (0-1 range), Sediment capacity slider (0-1 range), Independent Apply Hydraulic Erosion button
+      - **Thermal Erosion Section**: Erosion iterations input (0-500 range), Erosion rate slider (0-1 range), Independent Apply Thermal Erosion button
+      - **Wind Erosion Section**: Erosion iterations input (0-500 range), Wind direction slider (0-360 degrees), Sediment transport rate slider (0-1 range), Independent Apply Wind Erosion button
+      - **Plateau Erosion Section**: Erosion iterations input (0-500 range), Plateau flattening threshold slider (0-1 range), Flattening strength slider (0-1 range), Independent Apply Plateau Erosion button
+      - **River Erosion Section**: Erosion iterations input (0-500 range), Flow direction bias slider (0-360 degrees), Rainfall source points input (1-20 range), Erosion/deposition rate slider (0-1 range), Evaporation rate slider (0-1 range), Pooling threshold slider (0-1 range), Independent Apply River Erosion button, Independent Reset River Erosion button
+    - Each erosion type processes terrain data independently to avoid state corruption
+    - Terrain regenerates dynamically when parameters change
+    - Progress feedback when erosion simulation is running
+  - **Dungeon Mode Controls:**
+    - **Model Selection Interface:**
+      - Dropdown or grid selector for choosing 3D dungeon tile models from uploaded assets
+      - Integration with File Manager to access available dungeon models
+      - Preview thumbnails showing available models with proper scaling
+      - Model compatibility validation based on YAML tileset configuration
+    - **Rotation Controls:**
+      - Rotation slider or buttons for adjusting tile orientation (0°, 90°, 180°, 270°)
+      - Real-time preview showing model with applied rotation
+      - Snap-to-grid rotation for consistent alignment
+      - Visual rotation indicators showing current orientation
+    - **Tile Configuration:**
+      - Tile type selection based on YAML configuration (room, corridor, entrance, etc.)
+      - Adjacency rule validation showing compatible neighboring tiles
+      - Constraint satisfaction feedback for valid tile placements
+      - Real-time compatibility checking with neighboring cells
+    - **3D Preview Integration:**
+      - Interactive 3D preview showing selected model with rotation applied
+      - Camera controls for inspecting dungeon tile from all angles
+      - Lighting configuration for optimal tile visibility
+      - Model centering and scaling for consistent display
+  - Authentication required for all cell control operations with fallback
+- **Optimized Build Process:**
+  - **Bundle size optimization with code splitting and lazy loading for large components**
+  - **Cache cleanup strategies to prevent build artifacts from causing deployment issues**
+  - **Parallel build processing for faster compilation and deployment**
+  - **Tree shaking optimization to remove unused code and reduce bundle size**
+  - **Asset optimization including image compression and model file optimization**
+  - **Build performance monitoring with detailed metrics and optimization suggestions**
+  - **Memory usage optimization during build process to prevent out-of-memory errors**
+  - **Dependency optimization to reduce bundle size and improve load times**
+- **Grid Export and Import Functionality:**
+  - Save entire grid configuration to structured JSON format (authentication required)
+  - Load previously saved grid configurations (authentication required)
+  - Export includes for each cell:
+    - **Mode-specific data (terrain parameters or dungeon configuration)**
+    - All terrain generation parameters (noise scale, elevation multiplier, lighting) when in terrain mode
+    - Complete erosion settings for all five erosion types when in terrain mode
+    - **Dungeon cell configuration including selected model, rotation, tile type, and adjacency data when in dungeon mode**
+    - Mesh metadata including vertex positions, normals, indices
+    - Bounding box information
+    - Edge heightmaps for mesh stitching between adjacent tiles (terrain mode)
+    - **Model references and transformation data for dungeon tiles (dungeon mode)**
+    - UV bounds for texture mapping
+    - River map data including water depth, flow vectors, and pooling basins (terrain mode)
+  - Grid-level export including cell positioning and adjacency information
+  - **Mode identification in export data to properly restore terrain or dungeon configurations**
+  - JSON format optimized for game system parsing
+  - Mesh stitching metadata for seamless world composition
+  - **Immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+  - **Enhanced debug logging for export/import operations and offline mode verification**
+
+### User Interface
+- Mobile-first responsive navigation system with consistent responsive navigation pattern (collapsible menu or tab bar) that fits the "DunGen" aesthetic
+- Main header navigation with access to Admin Dashboard, File Manager, Game Object Generator, Generic Visualizer, YAML Backend Service, Global Tables Manager, and **Sign In / Sign Out** button optimized for mobile and desktop
+- **Fixed Sign In / Sign Out button prominently displayed in Header component with clear visibility on both desktop and mobile**
+- **Fixed authentication status indicator showing current login state and principal ID when authenticated**
+- **Enhanced offline status indicator showing local-only mode with clear visual feedback**
+- **Visible "offline mode" banner or inline log entry displayed during offline operation**
+- **Integrated debug widget displaying real-time offline status monitoring, local-only mode indicators, and startup progress with enhanced color-coded status indicators**
+- **Enhanced debug widget with deeper instrumentation logging offline mode status, local state changes, and startup completion in real-time with detailed timestamps**
+- **Debug widget captures and displays ModelPreview loading errors and failed loading stages with detailed error reporting through debugLogger integration**
+- **Enhanced DebugWidget connected with debugLogger utility to display real-time diagnostic output consistently across initialization, extraction, model rendering, and startup progress with enhanced color-coded logs and precise timestamps**
+- **Advanced debug widget integration for Game Object Generator showing UI component status, offline mode status, and startup progress with status updates, errors, and recovery progress**
+- **Enhanced debug widget integration for Deterministic Graph Traversal Engine showing live traversal logs, node entry details, RNG results, emitted data, next node selection, and ECS result inspection with real-time stream updates**
+- **Fixed debug widget integration for Game Object Generator capturing graph traversal results, final JSON output, state updates, and rendering errors for comprehensive offline troubleshooting**
+- **Debug widget integration for Generic Visualizer showing YAML parsing progress, model loading status, configuration validation, and visualization rendering progress**
+- **Debug widget integration for YAML Backend Service showing request/response simulation, queue processing, YAML merging operations, and service health monitoring**
+- **Debug widget integration for Global Tables Manager showing tier configuration changes, world population updates, table management operations, world loot generation progress, queue processing status, massive loot table analytics, RPG dataset integration status, and name uniqueness validation statistics**
+- **Enhanced debug widget integration for dungeon generation showing YAML tileset parsing progress, WFC algorithm execution status, constraint satisfaction progress, generation phase tracking, and visualization rendering status**
+- **Debug widget integration for unified terrain and dungeon generator showing mode switching, terrain/dungeon generation progress, model selection and rotation updates, and build optimization metrics**
+- Header component properly wrapped within router context to prevent null reference errors
+- Safe router state access with null-safety guards and proper context validation
+- Navigation using proper router methods (useNavigate() or Link components) instead of direct router context access
+- Router initialization occurs before Header component mounts to prevent context errors
+- Login page with Internet Identity authentication interface and principal display
+- Admin Dashboard page with large centered "DunGen" logo and prominent navigation to 3D Terrain Generator, File Manager, Game Object Generator, Generic Visualizer, YAML Backend Service, and Global Tables Manager
+- **YAML Backend Service page with clear title display, generic YAML-based backend responder interface, frontend parsing stubs for request/response simulation, YAML configuration processing with file input and validation, request/response simulation system with mock backend interface, YAML merging and completion engine with template-based completion, lightweight queue system simulation with message queue behavior, service integration interface with API endpoints simulation, and YAML template management with library and versioning**
+- **Global Tables Manager page with clear title display, RPG dataset integration system with static reference dictionary for context-aware loot generation, weapon-attack compatibility enforcement, sentient item attribute system, faction influence application, player archetype compatibility, sentient conflict dynamics, massive world loot table generation system with procedural dictionary-based loot generation for millions of items enhanced with RPG dataset context, tier-based generation with keyed attributes, enhanced excellent version generation, name uniqueness validation system with automatic duplicate detection and context-aware fallback naming algorithm, queue-based async world loot generator with context-aware batch processing and name uniqueness validation, world loot table UI interface with advanced filtering including RPG dataset criteria and name uniqueness summary display showing duplicate detection and resolution statistics, world loot export system with enhanced export including RPG dataset reference mappings and name uniqueness metadata, global tables definition system with RPG dataset-enhanced tier definitions, tier configuration interface with RPG dataset integration, YAML-based tier management with enhanced export including dataset references, world population dynamics with faction territory influence, tier integration system with RPG dataset context provision, global table storage with RPG dataset reference indexing and name uniqueness validation data, and tier analytics with RPG dataset utilization monitoring and name uniqueness analytics**
+- **Enhanced Game Object Generator page with stabilized UI rendering, proper initialization flow that renders UI immediately with graceful handling of offline mode, enhanced offline mode guards, loading states, error boundaries, responsive theme provider integration, fully functional buttons (Generate, Copy JSON, Toggle Raw/Formatted View), parameter configuration interface, integration with Global Tables for tier-based generation with RPG dataset-enhanced tier application, YAML Backend Service integration for partial configuration processing, enhanced output display system with "Resolved Entity", "Raw JSON", and "YAML Output" panels including RPG dataset context information, and enhanced dungeon generation system with YAML tileset configuration loading, robust parsing for tiles/adjacency/map_constraints sections, WFC-based dungeon assembly process with structural and decoration passes, dungeon layout visualization integration, and enhanced status indicators with clear loading/success/error states**
+- **Game Object Generator page with enhanced fixed rendering initialization order to prevent blank UI screens or missing elements on load**
+- **Game Object Generator page with clear title display, generation type selector for NPCs/Dungeons/Quests/Boss Battles/Raids, enhanced dungeon generation system with YAML tileset configuration loading supporting robust parsing for tiles/adjacency/map_constraints sections with comprehensive error handling and validation, WFC-based dungeon assembly process implementing Wave Function Collapse algorithm for structural and decoration passes with proper tile compatibility and constraint satisfaction, dungeon layout visualization with Generic Visualizer integration for 3D preview and interactive exploration, enhanced status indicators with clear loading indicators during YAML parsing and WFC generation, success confirmation with completion metrics, detailed error reporting for parsing failures and WFC issues, progress tracking for each generation phase, and debug output integration showing tileset loading and constraint processing, Deterministic Graph Traversal Engine integration with graph JSON data loading, deterministic RNG via mulberry32(seed), sequential node traversal with weighted random selection, ECS-compatible component event output, resolved entity object creation, fixed output display system with dedicated panels that update reactively with proper React state management, corrected JSON output rendering that reliably displays at bottom of page after traversal, fixed rendering logic ensuring final sections update reactively in collapsible/expandable container with proper formatting and scroll support, enhanced debugLogger integration capturing traversal results and errors, debug widget integration for verbose logging and real-time graph traversal visualization, and enhanced output panels including RPG dataset context information**
+- **Fixed state management in Game Object Generator ensuring the graphTraversal function's return value is correctly captured and stored in component state**
+- **Enhanced debug logging in Game Object Generator to confirm when generation completes and when the output state updates**
+- **Verified output display in Game Object Generator correctly handles formatted, raw JSON, and YAML views with live updates and no silent render failures**
+- **Generic Visualizer page with clear title display, entity type selector for Character/NPC/Item/Terrain/Dungeon, YAML configuration loading system with client-side parsing and validation, 3D model loading and rendering with Three.js integration, interactive scene controls with transformation and camera orbit controls, Visualizer Service API for external module integration, comprehensive error handling and feedback, directory and file management interface, and debug widget integration for visualization progress monitoring**
+- File Manager page with upload interface, file grid/list view, **fixed unified model loading pipeline for ZIP extraction with proper object URL resolution for local File objects, enhanced async handling with promise management, detailed dual-progress reporting showing extraction and per-model loading percentages, parallel task handling with Promise.all() for batch decompression, individual error handling per file with specific error messages, immediate display of extracted files with rendered thumbnails, and fully functional interactive Three.js previews with rotation, zoom, and lighting**, and **fixed ModelPreview component with reliable Three.js-based 3D model rendering using corrected loading pipeline with proper object URL resolution for local files, ensuring all models load with centered position and consistent scaling by positioning the model's object3D at coordinates (0, 0, 0), automatic camera and controls adjustment to center the model upon load, verbose debug logging for model positioning and bounding box dimensions, and offset application when necessary to keep entire model visible while maintaining correct anchoring at origin**
+- **Enhanced File Manager with immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **JSZip library dynamically imported for comprehensive frontend zip file processing with fixed model loading pipeline that properly converts extracted files to File objects with correct MIME types for Three.js loaders**
+- **Fixed file upload logic in FileManager.tsx for unified model loading pipeline that properly handles both uploaded files and extracted File objects using proper object URL resolution for in-memory file processing**
+- **Client-side ZIP content extraction using JSZip with corrected model loading pipeline that converts extracted files to proper File objects and passes them to Three.js loaders using proper object URL resolution**
+- **Corrected unified model loading pipeline that accepts File objects and properly routes them to appropriate Three.js loaders (GLTFLoader, OBJLoader, FBXLoader) with format-specific optimizations and correct object URL handling for local files**
+- **Enhanced async handling with proper promise management ensuring files are parsed and previewed as soon as they are ready with individual processing queues and sequential/parallel task coordination**
+- **Detailed dual-progress reporting system showing both ZIP extraction progress (percentage of files extracted) and per-model loading progress (percentage of models successfully loaded) with real-time status updates**
+- **Accurate progress tracking with corrected percentage calculations based on total files processed, showing real-time completion status with detailed progress messages per file and overall extraction/loading metrics**
+- **Parallel task handling for ZIP extraction with proper batch decompression using Promise.all() to await all extraction promises before proceeding to model loading phase with proper error isolation**
+- **Individual error handling per extracted file with specific error messages for each model that fails to load, including file format validation, MIME type detection, and loader-specific error reporting**
+- **Immediate display of extracted files in File Manager with rendered thumbnails generated from Three.js scenes as each model becomes ready with automatic list refresh**
+- **Fixed ModelPreview component that reliably uses Three.js to load and render 3D model previews for .glb, .gltf, .obj, and .fbx files using corrected loading pipeline with proper object URL resolution for local File objects, ensuring all models load with centered position and consistent scaling by positioning the model's object3D at coordinates (0, 0, 0), automatic camera and controls adjustment to center the model upon load with proper bounding box calculation, verbose debug logging for model positioning, bounding box dimensions, and centering process, and offset application when necessary to keep entire model visible while maintaining correct anchoring at origin**
+- **ModelPreview component with enhanced initialization that properly handles local file processing, ensuring Three.js scene initializes correctly for offline file management**
+- **ModelPreview component initializes complete Three.js scene with camera, orbit controls, and lighting every time a model is loaded with proper disposal of previous scenes and correct object URL handling for local files**
+- **Proper Three.js loader implementation using GLTFLoader, OBJLoader, and FBXLoader with corrected loading pipeline that accepts File objects and uses proper object URL resolution for local file processing**
+- **Automatic scene clearing and re-rendering when new files are selected to avoid render overlap with proper disposal of previous geometries, materials, and textures**
+- **Enhanced verbosity in Three.js model loading stages with detailed progress reporting for: initialization, download, parse, texture load, mesh creation, and render complete phases**
+- **All model loader failures (GLB, GLTF, OBJ, FBX) pass their error messages and progress updates to the debugLogger utility for comprehensive error tracking and real-time diagnostic output**
+- **Enhanced error handling and individual file error reporting for failed model loads and descriptive feedback per file with specific loader error messages and recovery suggestions passed to debugLogger**
+- **Error capture and logging through debugLogger for ModelPreview failed or invalid loading stages with detailed error reporting, stack traces, and recovery suggestions**
+- **Enhanced DebugLogger utility integration and DebugWidget to display real-time diagnostic output consistently across initialization, extraction, model rendering, and startup progress with enhanced color-coded logs, precise timestamps, error categorization, and recovery progress tracking**
+- **Responsive Three.js scene canvas that fits seamlessly within File Manager layout with proper interactive controls (rotation, zoom, lighting) and touch optimization**
+- **Fully functional interactive Three.js previews for all extracted models post-load with complete scene initialization including proper camera positioning, orbit controls, and lighting setup**
+- **Individual processing of each extracted 3D model file (.glb, .gltf, .obj, .fbx) using the corrected model loading pipeline with proper object URL handling and MIME type detection**
+- **FileMetadata creation and extractionSource field set to uploaded ZIP's Blob ID for extracted models with proper file type and directory structure tracking**
+- **Comprehensive progress overlay displaying detailed extraction and loading status with corrected dual-percentage completion (extraction % and loading %), current filename being processed with individual file progress, error status per file, and performance metrics**
+- **Success confirmation display once all extracted files are properly processed and loaded with automatic File Manager list refresh and summary of successful/failed extractions per file**
+- **Robust error handling and clear user messages explaining extraction or loading failures per individual file, specific reasons for failures, loader-specific error details, and recovery suggestions**
+- **Correct FileMetadata creation setting archiveType = #zip for ZIP uploads and relativePath for extracted files matching internal folder path with proper directory structure preservation**
+- **Cross-browser compatibility testing and validation for consistent extraction and loading performance on desktop and mobile devices with proper File API usage**
+- **Verification that after ZIP extraction, models are viewable immediately and the scene resets correctly each time with proper object URL cleanup and scene disposal**
+- **Unified 3D Terrain Generator page with mode toggle system featuring primary mode selector with "Terrain" and "Dungeon" options, smooth transition between modes without page reload, mode-specific UI elements that show/hide based on selection, persistent mode selection during session, and clear visual indicators for active mode**
+- **Shared grid management system with configurable n×n grids, interactive grid layout with responsive breakpoints, horizontal responsiveness for large grids using CSS grid auto-fit/auto-fill, scroll containment and zoom-to-fit behavior, mobile-optimized scrollable grid container with adaptive cell sizing, and grid layout alignment with control bar and UI elements**
+- **Mode-specific individual cell controls with terrain mode featuring orbit camera controls, real-time UI controls for noise scale/elevation multiplier/lighting configuration, separate erosion simulation controls for all five erosion types with independent processing, and dungeon mode featuring model selection interface with File Manager integration, rotation controls with real-time preview, tile configuration with adjacency rule validation, and 3D preview integration with interactive model inspection**
+- **Optimized build process with bundle size optimization using code splitting and lazy loading, cache cleanup strategies, parallel build processing, tree shaking optimization, asset optimization, build performance monitoring, memory usage optimization, and dependency optimization**
+- **Grid export and import functionality supporting mode-specific data including terrain parameters or dungeon configuration, complete erosion settings for terrain mode, dungeon cell configuration with model/rotation/tile type/adjacency data for dungeon mode, mode identification in export data, and JSON format optimized for game system parsing**
+- Top control bar containing "New Grid", "Save Grid", and "Export" buttons with touch-friendly sizing
+- **Mode toggle prominently displayed in control bar with clear visual distinction between Terrain and Dungeon modes**
+- Focused cell editing interface with smooth transitions between selected cells optimized for all screen sizes
+- Vertically scrollable list of unselected cells positioned below the top control bar with responsive spacing
+- Compact cell display in scrollable list showing coordinates or ID for easy identification
+- Click-to-select functionality for cells in the scrollable list with enhanced touch interactions
+- Individual cell editing interface and terrain/dungeon preview in the main editor area that adapts to screen size
+- ControlPanel layout optimized for mobile with sliders, buttons, and inputs that resize and reposition intuitively for touch inputs
+- TerrainScene layout and 3D scenes that resize and reposition intuitively for mobile devices
+- **Mode-specific control organization with terrain erosion controls in separate sections and dungeon model selection/rotation controls in dedicated interface areas**
+- Clear visual separation between different control types based on selected mode
+- Real-time parameter adjustment without page refresh
+- Visual progress indicators for erosion processing, dungeon generation, and zip extraction with detailed dual-progress overlay showing accurate extraction percentage and per-model loading percentage, current filename with detailed progress messages including individual file status, and performance metrics
+- **Enhanced global loading overlay showing offline mode status, local-only operation indicators, build optimization progress, and comprehensive status messages including "Offline mode active", "Local-only functionality", "No backend connected", and startup progress**
+- **Enhanced debug widget with live log streaming showing comprehensive offline mode status, local state changes, startup completion, build optimization metrics, and detailed error messages with precise timestamps and enhanced color-coded status indicators**
+- **Advanced offline status display with verbose diagnostic information including local-only mode status, offline functionality availability, build optimization status, and comprehensive readiness verification**
+- Mobile-first responsive layout using Tailwind CSS breakpoints (sm, md, lg, xl) that dynamically updates when switching cells or modes without overflow or breakage
+- Responsive 3D viewport that fills the preview area with proper containment across all devices
+- Three.js canvas properly constrained within designated preview sections with responsive sizing and interactive controls (rotation, zoom, lighting)
+- Enhanced touch interactions (drag, pinch, and zoom) for the Three.js TerrainScene and File Manager 3D previews
+- Performance-optimized UI for large grid management on all devices with build optimization integration
+- Unified typography, spacing, and transitions optimized for both desktop and mobile views
+- Application content displayed in English
+- **Enhanced offline-aware UI that shows/hides features based on offline mode status and local functionality availability**
+- **Advanced UI state management that proceeds to limited functionality in offline mode while maintaining basic app functionality**
+- **Build optimization status indicators showing bundle size reduction, cache cleanup progress, and deployment readiness**
+
+## Technical Requirements
+
+### Frontend
+- React Router for navigation between Login, Admin Dashboard, terrain generator, File Manager, Game Object Generator, Generic Visualizer, YAML Backend Service, and Global Tables Manager
+- Internet Identity integration for authentication with principal management
+- Authentication context provider for managing login state across components
+- **Immediate UI rendering in main.tsx and App.tsx without any backend or actor initialization**
+- **Complete removal of all runtime controller hooks including useActorInitialization, useActor, and background initialization calls**
+- **App startup renders entirely offline with no backend connection attempts, no actor creation, and no principal-based calls**
+- **Router and all UI components render immediately on app startup with zero blocking initialization**
+- **Static local state management for InitializationOverlay and ConnectionBanner without querying connection status**
+- **DebugWidget mounts immediately showing static startup logs with local messages like "No backend connected — local-only mode active"**
+- **Simplified App.tsx routing and state rendering only static pages (GridEditor, FileManager, GameObjectGenerator, GraphGenerator, GenericVisualizer, YAMLBackendService, GlobalTablesManager) immediately on load**
+- **No page imports or interactions with backend actor directly, displaying offline-appropriate messages when data queries return empty**
+- **Enhanced debug logging showing local-only mode status and offline functionality**
+- **Debug widget component that live-mirrors local initialization and offline status logs showing rich state transitions, full error messages, local state changes, startup completion, and offline mode indicators with precise timestamps**
+- **Enhanced color-coded offline status management in debug widget: Offline (orange), Local-only (blue), Ready (green)**
+- **Debug pane integration displaying offline mode status, local-only operation indicators, and detailed startup progress**
+- **Enhanced debug logging for offline mode status, local state changes, startup completion, and comprehensive offline functionality verification**
+- **Verbose status reporting system providing detailed diagnostic information for offline mode status, local functionality availability, and comprehensive readiness verification**
+- **Visual loading indicators and progress overlays for offline mode status, local-only operation indicators, and startup completion**
+- **Offline mode resilience system with comprehensive null checks, proper promise resolution, local state verification, and comprehensive readiness verification before any operations**
+- **Offline readiness verification for all operations with comprehensive debug visibility**
+- **Robust offline state management ensuring app proceeds to full functionality in offline mode while maintaining all basic app functionality**
+- **All pages (GameObjectGenerator, GraphGenerator, TerrainGenerator, FileManager, GenericVisualizer, YAMLBackendService, GlobalTablesManager) render immediately in offline mode with appropriate fallback behavior**
+- **Static local initialization timing that renders UI immediately without any backend dependencies**
+- **Continuous offline state monitoring with comprehensive diagnostic output including local initialization stage and offline functionality status**
+- **Real-time DebugWidget display of all offline diagnostics and local initialization messages with enhanced color-coded status indicators and precise timestamps**
+- **Fixed main.tsx initialization to prevent white screen issues by ensuring proper provider composition, error boundary implementation, and immediate rendering without blocking on any initialization processes**
+- **Enhanced main.tsx with proper React 18 StrictMode compatibility, error handling for provider failures, and immediate DOM rendering without waiting for any async operations**
+- **Corrected main.tsx provider hierarchy to prevent context provider conflicts and ensure all components have access to required contexts immediately on startup**
+- **Fixed main.tsx rendering logic to handle initialization errors gracefully and display appropriate fallback UI when providers fail to initialize**
+- **Robust main.tsx error boundaries that catch and display provider initialization failures, context conflicts, and rendering errors with detailed error messages**
+- **Enhanced main.tsx with proper async error handling for provider setup and immediate fallback rendering when initialization fails**
+- **Fixed main.tsx to ensure React root creation and rendering occurs synchronously without waiting for any async operations or provider initialization**
+- Principal caching using localStorage for persistent sessions
+- Automatic session restoration on app reload with offline mode verification
+- Protected route components that redirect to Login page for unauthenticated access
+- Authentication guards for restricted actions (file uploads, terrain editing, grid operations, game object generation, YAML service operations, global tables management, world loot table generation, **dungeon generation operations and tileset configuration management**) with offline mode verification
+- **Enhanced offline mode availability with local functionality verification before allowing operations**
+- Proper router context initialization in App.tsx before Header component mounting
+- **Fixed Header component with null-safety guards for router state access and properly functioning Sign In / Sign Out button**
+- **Fixed authentication status indicator in Header showing current login state and principal ID**
+- **Offline status display in Header with enhanced color-coded offline state indicators, local-only mode status, and verbose diagnostic information**
+- **Enhanced debug widget integration in Header or global status area showing live offline status management events, local state monitoring, and startup progress**
+- Safe navigation implementation using useNavigate() hook or Link components
+- Router context validation to prevent '__store' null reference errors
+- **Fixed Login component with Internet Identity authentication interface, principal display, and proper authentication state updates**
+- Admin Dashboard component with proper loading states, error handling, and mobile-first responsive layout
+- **Enhanced Admin Dashboard with immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **YAML Backend Service component with generic YAML-based backend responder interface, frontend parsing stubs for request/response simulation, YAML configuration processing with file input and client-side parsing, request/response simulation system with mock backend interface and queue visualization, YAML merging and completion engine with template-based completion and conflict resolution, lightweight queue system simulation with message queue behavior and priority-based ordering, service integration interface with API endpoints simulation and service discovery, and YAML template management with library, versioning, and custom template creation**
+- **YAML parsing library integration for client-side configuration processing with validation and error reporting**
+- **Mock backend service interface for simulating YAML processing requests with queue visualization and response preview**
+- **YAML merging engine with template-based completion using predefined structures and nested property merging with conflict resolution**
+- **Queue system simulation with message queue behavior, priority-based task ordering, and real-time status monitoring**
+- **Service integration interface with API endpoints simulation, response formatting, and service discovery simulation**
+- **YAML template management system with template library, selection interface, custom template creation, and versioning capabilities**
+- **Enhanced YAML Backend Service with immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **Global Tables Manager component with RPG dataset integration system featuring static reference dictionary for context-aware loot generation with weapon-attack compatibility enforcement, sentient item attribute system with personality/behavior/evolution paths, faction influence application with alignment/ideology/territory/relationship systems, player archetype compatibility ensuring generated loot respects character builds, sentient conflict dynamics creating interactive world elements, massive world loot table generation system with procedural dictionary-based approach enhanced with RPG dataset context for millions of items, tier-based generation with keyed attributes enhanced with dataset compatibility rules, enhanced excellent version generation with stat buffs/resistances/debuff abilities/world-breaking powers, name uniqueness validation system with automatic duplicate detection and context-aware fallback naming algorithm that appends identifiers for human-readable uniqueness, queue-based async world loot generator with context-aware batch processing leveraging dataset relationships and name uniqueness validation integrated into batch processing, world loot table UI interface with comprehensive filtering including RPG dataset criteria and name uniqueness summary display showing duplicate detection and resolution statistics in real-time, world loot export system with enhanced export including weapon-attack compatibility tables/faction influence mappings/sentient evolution paths/archetype-playstyle matrices and name uniqueness metadata, global tables definition system with RPG dataset-enhanced tier definitions incorporating weapon categories/attack types/faction alignments/archetype preferences, tier configuration interface with RPG dataset integration for compatibility rules/faction parameters/archetype settings, YAML-based tier management with enhanced export including RPG dataset reference mappings and contextual generation rules, world population dynamics with faction territory influence on loot generation, tier integration system providing RPG dataset context to all connected services, global table storage with RPG dataset reference indexing for fast context-aware lookups and name uniqueness validation data storage, and tier analytics with RPG dataset utilization monitoring showing compatibility usage/faction distribution/archetype alignment statistics and name uniqueness analytics showing duplicate detection rates/resolution success rates/fallback naming pattern effectiveness**
+- **Name uniqueness validation system with automatic duplicate detection during massive world loot table generation, real-time uniqueness validation preventing duplicate names across all tiers and categories, context-aware fallback naming algorithm appending identifiers for human-readable uniqueness, intelligent name generation using weapon category/attack type/faction alignment/tier information, duplicate resolution system automatically generating alternative names when conflicts detected, name collision tracking with detailed statistics on duplicates found and resolved, fallback naming patterns maintaining readability while ensuring uniqueness across millions of items, and name validation integration with RPG dataset context ensuring generated names respect weapon-attack compatibility and faction themes**
+- **Name uniqueness validation integrated into batch processing with duplicate detection and resolution tracking, real-time duplicate statistics display showing duplicates found and resolved during async generation**
+- **Name uniqueness summary display with real-time duplicate detection summary showing "0 duplicates found / X duplicates resolved" during table generation, detailed uniqueness statistics panel displaying total items generated/unique names created/duplicate resolution count, name collision report showing which naming patterns triggered fallback algorithms, uniqueness validation status indicator showing current validation state and ongoing resolution processes, and summary of fallback naming patterns used and their effectiveness in maintaining uniqueness**
+- **Name uniqueness metadata export including duplicate resolution statistics and fallback naming pattern usage**
+- **Name uniqueness validation data storage including duplicate resolution history and fallback pattern effectiveness**
+- **Name uniqueness analytics showing duplicate detection rates, resolution success rates, and fallback naming pattern effectiveness**
+- **RPG dataset integration system with static reference dictionary providing context for weapon-attack compatibility, sentient item attributes, faction influences, and archetype alignment**
+- **Weapon-attack compatibility enforcement system ensuring only valid attack types are generated for specific weapon categories based on RPG dataset rules**
+- **Sentient item attribute system determining personality traits, behavior states, and evolution paths according to RPG dataset specifications**
+- **Faction influence application system using alignment mappings, ideology systems, territory bonuses, and relationship stance modifiers from RPG dataset**
+- **Player archetype and playstyle compatibility system ensuring generated loot respects character builds and preferences based on RPG dataset archetypes**
+- **Sentient conflict dynamics system creating interactive world elements based on personality clashes and faction relationships from RPG dataset**
+- **Context-aware loot generation system leveraging RPG dataset relationships for weapon-attack compatibility, faction-alignment matching, and archetype-appropriate rewards**
+- **Enhanced world loot generation with RPG dataset context ensuring weapon-attack type compatibility, faction-appropriate bonuses, and archetype-aligned attributes**
+- **Context-aware batch processing system leveraging RPG dataset for consistent weapon-attack compatibility and faction-alignment enforcement during async generation**
+- **Advanced filtering system including RPG dataset criteria such as weapon type, attack compatibility, faction alignment, and archetype suitability**
+- **Enhanced export system including weapon-attack compatibility tables, faction influence mappings, sentient item evolution paths, and archetype-playstyle compatibility matrices**
+- **RPG dataset-enhanced tier definitions incorporating weapon categories, attack types, faction alignments, and archetype preferences**
+- **RPG dataset integration interface for configuring weapon-attack compatibility rules, faction influence parameters, and archetype alignment settings**
+- **Enhanced YAML export including RPG dataset reference mappings and contextual generation rules**
+- **Faction territory influence system affecting loot generation with alignment-based bonuses and penalties**
+- **RPG dataset integration providing context-aware generation parameters for all connected services**
+- **RPG dataset reference storage and indexing system for fast context-aware lookups during generation**
+- **RPG dataset utilization analytics showing weapon-attack compatibility usage, faction influence distribution, and archetype alignment statistics**
+- **Enhanced Global Tables Manager with immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **Enhanced Game Object Generator component with stabilized UI rendering, proper initialization flow that renders UI immediately with graceful handling of offline mode with appropriate fallback behavior, enhanced offline mode guards, loading states, error boundaries with debug messages visible in DebugWidget for UI component failures, responsive theme provider and router integration, fully functional buttons (Generate, Copy JSON, Toggle Raw/Formatted View), parameter configuration interface, integration with Global Tables for tier-based generation with tier selection interface and automatic tier application enhanced with RPG dataset context ensuring weapon-attack compatibility/faction alignment/archetype suitability during generation, YAML Backend Service integration for partial configuration processing with YAML merging capabilities and queue system integration, enhanced output display system with "Resolved Entity", "Raw JSON", and "YAML Output" panels including RPG dataset context information showing weapon-attack compatibility/faction influences/archetype alignment for generated entities, and enhanced dungeon generation system with YAML tileset configuration loading supporting robust parsing for tiles/adjacency/map_constraints sections with comprehensive error handling and validation, WFC-based dungeon assembly process implementing Wave Function Collapse algorithm for structural and decoration passes with proper tile compatibility and constraint satisfaction, dungeon layout visualization with Generic Visualizer integration for 3D preview and interactive exploration, and enhanced status indicators with clear loading indicators during YAML parsing and WFC generation, success confirmation with completion metrics, detailed error reporting for parsing failures and WFC issues, progress tracking for each generation phase, and debug output integration showing tileset loading and constraint processing**
+- **Game Object Generator component with enhanced fixed rendering initialization order to prevent blank UI screens or missing elements on load**
+- **Game Object Generator component with clear title display, generation type selector for NPCs/Dungeons/Quests/Boss Battles/Raids, enhanced dungeon generation system with YAML tileset configuration loading supporting robust client-side YAML parsing with comprehensive error handling and validation for tiles/adjacency/map_constraints sections, real-time YAML structure preview showing parsed tileset data, configuration validation with specific error reporting for malformed tileset YAML, debug output for tileset parsing progress and validation results, WFC-based dungeon assembly process implementing Wave Function Collapse algorithm for dungeon layout generation with structural pass processing using tileset adjacency rules and constraints, decoration pass processing for detailed dungeon element placement, proper handling of tile compatibility and constraint satisfaction, real-time WFC generation progress tracking with detailed status updates, error handling for WFC generation failures with specific diagnostic information, dungeon layout visualization with Generic Visualizer integration for 3D dungeon layout preview display and interactive dungeon exploration with camera controls and navigation, visual representation of generated rooms/corridors/connections with real-time updates during generation process, enhanced status indicators with clear loading indicators during YAML parsing and WFC generation, success confirmation with generation completion metrics, detailed error reporting for parsing failures/WFC issues/visualization problems, progress tracking for each generation phase (parsing/WFC/visualization), and debug output integration showing tileset loading/constraint processing/generation results, Deterministic Graph Traversal Engine as reusable frontend module with graph JSON data loading supporting entry/nodes/id/weight/emit/next structure, deterministic RNG implementation via mulberry32(seed) for consistent reproduction, sequential node traversal from entry point accumulating emitted component data into event array, weighted random selection (~50% pseudo-randomness) for choice node branching using deterministic RNG, ECS-compatible component event output system, resolved entity object creation from accumulated data, integration with Global Tables for tier-based generation with tier selection interface and automatic tier application based on configuration enhanced with RPG dataset-enhanced tier application ensuring weapon-attack compatibility/faction alignment/archetype suitability during generation, YAML Backend Service integration with partial configuration input support and YAML merging capabilities for completing configurations, fixed output display system with dedicated "Resolved Entity" panel showing formatted ECS component key-value display, "Raw JSON" panel displaying complete JSON events and entity structure, and "YAML Output" panel displaying completed YAML configuration with reactive updates and proper React state management, corrected output rendering that reliably displays at bottom of page after graph traversal completes, fixed rendering logic ensuring final sections update reactively and display in collapsible/expandable output container with proper formatting and scroll support, enhanced debugLogger integration capturing graph traversal results and final outputs with state updates and rendering errors, copy-to-clipboard functionality for all outputs, consistent styling matching DunGen theme, live traversal logs integration with Debug Widget for real-time updates and ECS result inspection, deep debug output for each traversal stage including node entry/RNG result/emitted data/next node selection, debug widget integration for verbose logging and real-time graph traversal visualization, and enhanced output panels including RPG dataset context information showing weapon-attack compatibility/faction influences/archetype alignment for generated entities**
+- **Fixed state management in Game Object Generator ensuring the graphTraversal function's return value is correctly captured and stored in component state**
+- **Enhanced debug logging in Game Object Generator to confirm when generation completes and when the output state updates**
+- **Verified output display in Game Object Generator correctly handles formatted, raw JSON, and YAML views with live updates and no silent render failures**
+- **Enhanced Game Object Generator with immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **Enhanced Dungeon Generation Frontend Implementation:**
+  - **YAML tileset configuration loading system with file input interface for uploading YAML tileset files**
+  - **Robust client-side YAML parsing using reliable YAML parser library with comprehensive error handling and validation**
+  - **Support for parsing `tiles`, `adjacency`, and `map_constraints` sections from YAML configuration with proper data structure extraction**
+  - **Real-time YAML structure preview showing parsed tileset data with visual representation of tile definitions and constraints**
+  - **Configuration validation with specific error reporting for malformed tileset YAML including line numbers and syntax information**
+  - **Debug output integration for tileset parsing progress, validation results, and data structure verification**
+  - **WFC algorithm implementation for dungeon layout generation with proper Wave Function Collapse logic**
+  - **Structural pass processing using tileset adjacency rules and map constraints with proper constraint satisfaction**
+  - **Decoration pass processing for detailed dungeon element placement based on tileset configuration**
+  - **Proper handling of tile compatibility matrix and constraint propagation during WFC execution**
+  - **Real-time WFC generation progress tracking with detailed status updates and phase indicators**
+  - **Error handling for WFC generation failures with specific diagnostic information and recovery suggestions**
+  - **Integration with Generic Visualizer for dungeon layout preview display and 3D visualization**
+  - **Interactive dungeon exploration interface with camera controls, navigation, and layout inspection**
+  - **Visual representation of generated rooms, corridors, and connections with proper spatial relationships**
+  - **Real-time visualization updates during dungeon generation process with progressive rendering**
+  - **Enhanced status indicators with clear loading states during YAML parsing and WFC generation phases**
+  - **Success confirmation display with generation completion metrics and performance statistics**
+  - **Detailed error reporting system for parsing failures, WFC constraint violations, and visualization problems**
+  - **Progress tracking interface for each generation phase including parsing, constraint setup, WFC execution, and visualization**
+  - **Debug output integration showing tileset loading progress, constraint processing status, and generation results**
+  - **Enhanced debug widget integration for dungeon generation showing YAML parsing progress, WFC algorithm execution status, constraint satisfaction progress, generation phase tracking, and visualization rendering status**
+- **Deterministic Graph Traversal Engine module with graph JSON loading, mulberry32 RNG implementation, sequential traversal logic, weighted selection algorithms, ECS component generation, Global Tables integration for tier-based generation enhanced with RPG dataset context, YAML Backend Service integration for configuration processing, and comprehensive debug output integration**
+- **Graph traversal system with deep debugging for node entry, RNG calculations, emitted data accumulation, next node selection, tier application enhanced with RPG dataset context, YAML processing, and final ECS output with Debug Widget integration**
+- **Real-time graph traversal logging showing node selection, weight calculations, tier application enhanced with RPG dataset compatibility checks, and path decisions during generation process**
+- **ECS component output generation with structured component events and resolved entity objects based on selected generation type and tier configuration enhanced with RPG dataset context**
+- **Debug widget integration showing live graph traversal logs, tier application details enhanced with RPG dataset context, YAML processing status, and final ECS component breakdown with detailed JSON structure**
+- **Fixed debugLogger integration for Game Object Generator capturing graph traversal results, tier application enhanced with RPG dataset context, YAML processing, final outputs, React state updates, and rendering errors for comprehensive offline troubleshooting**
+- **Enhanced error boundaries with debug logging for Game Object Generator UI component failures, offline mode handling, uninitialized router, and local state issues with messages visible in DebugWidget**
+- **All interactive generation workflows (NPCs, bosses, dungeons, quests, raids) are functional with full deterministic graph traversal output, tier-based generation enhanced with RPG dataset context, and YAML configuration support**
+- **Fixed output display system with dedicated panels for viewing generation results including "Resolved Entity" panel with formatted ECS component key-value display, "Raw JSON" panel with complete JSON structure, and "YAML Output" panel with completed YAML configuration, all updating reactively with proper React state management, corrected output rendering that reliably displays at bottom of page after traversal, fixed rendering logic ensuring final sections update reactively in collapsible/expandable container with proper formatting and scroll support, copy-to-clipboard functionality with consistent styling, and enhanced output panels including RPG dataset context information**
+- **Generic Visualizer component with entity type selector for Character/NPC/Item/Terrain/Dungeon, YAML configuration loading system with client-side parsing using reliable YAML parser library, configuration validation and error reporting, 3D model loading and rendering with Three.js integration using existing model loading pipeline, interactive scene controls with transformation and camera orbit controls, Visualizer Service API for external module integration allowing Designer and Generator modules to invoke visualization, comprehensive error handling and feedback for missing configurations and assets, directory and file management interface with file browser and asset discovery, and debug widget integration for visualization progress monitoring**
+- **YAML parsing library integration for client-side configuration processing with validation and error reporting**
+- **Visualizer Service API implementation providing modular interface for external components to invoke visualization with specific entity type and directory path parameters**
+- **Session-based entity loading system supporting single entity type per session with proper state management**
+- **Service methods for programmatic visualization triggering from Designer and Generator modules**
+- **Directory browser interface for selecting entity configuration folders with nested directory support**
+- **Asset discovery system for automatic detection of 3D models within selected directories**
+- **Configuration validation system with specific error messages for malformed YAML and missing assets**
+- **Real-time configuration preview showing parsed YAML structure with metadata display**
+- **Material and texture loading based on YAML configuration with proper Three.js integration**
+- **Model positioning and scaling according to configuration transforms with real-time adjustment**
+- **Enhanced Generic Visualizer with immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- File Manager component with upload interface, file management, **fixed unified model loading pipeline for ZIP extraction with proper object URL resolution for local File objects, enhanced async handling with promise management for sequential and parallel processing, detailed dual-progress reporting showing both extraction percentage and per-model loading percentage with real-time updates, parallel task handling using Promise.all() for batch decompression with proper await management, individual error handling per extracted file with specific error messages and loader-specific reporting, immediate display of extracted files with rendered thumbnails as each becomes ready, fully functional interactive Three.js previews post-load with rotation, zoom, and lighting controls, and comprehensive error handling**, and **fixed ModelPreview component with reliable Three.js-based 3D model rendering using corrected loading pipeline with proper object URL resolution for local File objects, ensuring all models load with centered position and consistent scaling by positioning the model's object3D at coordinates (0, 0, 0), automatic camera and controls adjustment to center the model upon load with proper bounding box calculation, verbose debug logging for model positioning, bounding box dimensions, and centering process, and offset application when necessary to keep entire model visible while maintaining correct anchoring at origin**
+- **Enhanced File Manager with immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **JSZip library dynamically imported for comprehensive frontend zip file processing with fixed model loading pipeline that properly converts extracted files to File objects with correct MIME types for Three.js loaders**
+- **Fixed file upload logic in FileManager.tsx for unified model loading pipeline that properly handles both uploaded files and extracted File objects using proper object URL resolution for in-memory file processing**
+- **Client-side ZIP content extraction using JSZip with corrected model loading pipeline that converts extracted files to proper File objects and passes them to Three.js loaders using proper object URL resolution**
+- **Corrected unified model loading pipeline that accepts File objects and properly routes them to appropriate Three.js loaders (GLTFLoader, OBJLoader, FBXLoader) with format-specific optimizations and correct object URL handling for local files**
+- **Enhanced async handling with proper promise management ensuring files are parsed and previewed as soon as they are ready with individual processing queues and sequential/parallel task coordination**
+- **Detailed dual-progress reporting system showing both ZIP extraction progress (percentage of files extracted) and per-model loading progress (percentage of models successfully loaded) with real-time status updates**
+- **Accurate progress tracking with corrected percentage calculations based on total files processed, showing real-time completion status with detailed progress messages per file and overall extraction/loading metrics**
+- **Parallel task handling for ZIP extraction with proper batch decompression using Promise.all() to await all extraction promises before proceeding to model loading phase with proper error isolation**
+- **Individual error handling per extracted file with specific error messages for each model that fails to load, including file format validation, MIME type detection, and loader-specific error reporting**
+- **Immediate display of extracted files in File Manager with rendered thumbnails generated from Three.js scenes as each model becomes ready with automatic list refresh**
+- **Fixed ModelPreview component that reliably uses Three.js to load and render 3D model previews for .glb, .gltf, .obj, and .fbx files using corrected loading pipeline with proper object URL resolution for local File objects, ensuring all models load with centered position and consistent scaling by positioning the model's object3D at coordinates (0, 0, 0), automatic camera and controls adjustment to center the model upon load with proper bounding box calculation, verbose debug logging for model positioning, bounding box dimensions, and centering process, and offset application when necessary to keep entire model visible while maintaining correct anchoring at origin**
+- **ModelPreview component with enhanced initialization that properly handles local file processing, ensuring Three.js scene initializes correctly for offline file management**
+- **ModelPreview component initializes complete Three.js scene with camera, orbit controls, and lighting every time a model is loaded with proper disposal of previous scenes and correct object URL handling for local files**
+- **Proper Three.js loader implementation using GLTFLoader, OBJLoader, and FBXLoader with corrected loading pipeline that accepts File objects and uses proper object URL resolution for local file processing**
+- **Automatic scene clearing and re-rendering when new files are selected to avoid render overlap with proper disposal of previous geometries, materials, and textures**
+- **Enhanced verbosity in Three.js model loading stages with detailed progress reporting for: initialization, download, parse, texture load, mesh creation, and render complete phases**
+- **All model loader failures (GLB, GLTF, OBJ, FBX) pass their error messages and progress updates to the debugLogger utility for comprehensive error tracking and real-time diagnostic output**
+- **Enhanced error handling and individual file error reporting for failed model loads and descriptive feedback per file with specific loader error messages and recovery suggestions passed to debugLogger**
+- **Error capture and logging through debugLogger for ModelPreview failed or invalid loading stages with detailed error reporting, stack traces, and recovery suggestions**
+- **Enhanced DebugLogger utility integration and DebugWidget to display real-time diagnostic output consistently across initialization, extraction, model rendering, and startup progress with enhanced color-coded logs, precise timestamps, error categorization, and recovery progress tracking**
+- **Responsive Three.js scene canvas that fits seamlessly within File Manager layout with proper interactive controls (rotation, zoom, lighting) and touch optimization**
+- **Fully functional interactive Three.js previews for all extracted models post-load with complete scene initialization including proper camera positioning, orbit controls, and lighting setup**
+- **Individual processing of each extracted 3D model file (.glb, .gltf, .obj, .fbx) using the corrected model loading pipeline with proper object URL handling and MIME type detection**
+- **FileMetadata creation and extractionSource field set to uploaded ZIP's Blob ID for extracted models with proper file type and directory structure tracking**
+- **Comprehensive progress overlay displaying detailed extraction and loading status with corrected dual-percentage completion (extraction % and loading %), current filename being processed with individual file progress, error status per file, and performance metrics**
+- **Success confirmation display once all extracted files are properly processed and loaded with automatic File Manager list refresh and summary of successful/failed extractions per file**
+- **Robust error handling and clear user messages explaining extraction or loading failures per individual file, specific reasons for failures, loader-specific error details, and recovery suggestions**
+- **Correct FileMetadata creation setting archiveType = #zip for ZIP uploads and relativePath for extracted files matching internal folder path with proper directory structure preservation**
+- **Cross-browser compatibility testing and validation for consistent extraction and loading performance on desktop and mobile devices with proper File API usage**
+- **Verification that after ZIP extraction, models are viewable immediately and the scene resets correctly each time with proper object URL cleanup and scene disposal**
+- Large centered "DunGen" logo component styled consistently with application theme
+- Prominent navigation buttons/links to 3D Terrain Generator, File Manager, Game Object Generator, Generic Visualizer, YAML Backend Service, and Global Tables Manager styled to match header navigation elements
+- Mobile-first responsive design using Tailwind CSS breakpoints (sm, md, lg, xl) for all components
+- Consistent responsive navigation pattern (collapsible menu or tab bar) optimized for mobile devices
+- Three.js for 3D rendering and scene management with enhanced touch interactions
+- Three.js GLTFLoader, OBJLoader, and FBXLoader for 3D asset loading and preview with corrected loading pipeline that supports File objects using proper object URL resolution for local files
+- Enhanced touch controls for Three.js scenes including drag, pinch, and zoom functionality
+- File upload handling with drag-and-drop support and progress tracking for all supported formats including zip files
+- **Fixed frontend-based zip file extraction using JSZip with corrected model loading pipeline, comprehensive dual-progress overlay with detailed per-file logging, enhanced async handling with promise management, parallel task processing with proper error isolation, performance optimization, and robust individual file error handling**
+- File type validation for supported 3D asset formats (.glb, .gltf, .obj, .fbx) and zip files with enhanced detection for extracted assets and proper MIME type handling
+- Real-time display updates for extracted files as they become available with automatic file list refresh, accurate dual-progress reporting with detailed per-file logging, and performance metrics
+- Thumbnail generation for 3D models using Three.js rendering with corrected loading pipeline for extracted models using proper object URL handling
+- Interactive 3D model preview with orbit controls and lighting for all file types with corrected loading pipeline that supports File objects using proper object URL resolution for local files with proper scene initialization and interactive controls
+- Perlin noise implementation for terrain generation
+- Independent erosion simulation algorithms (hydraulic, thermal, wind, plateau, and river) with isolated data processing
+- Grid management system with cell-based configuration optimized for touch interactions
+- **GridEditor and GridView components with proper horizontal responsiveness for large grids using CSS grid auto-fit/auto-fill with fractional units**
+- **Scroll containment or zoom-to-fit behavior implementation for viewport scaling**
+- **Scrollable grid container with adaptive cell size calculation for mobile and narrow viewports**
+- **Grid layout alignment system ensuring proper centering and responsiveness with control bar and UI elements**
+- Smooth transition system for focused cell editing mode across all screen sizes
+- Scrollable cell list component with compact cell display and responsive spacing
+- Dynamic layout management for responsive cell switching using Tailwind breakpoints
+- Individual terrain preview system with contained rendering that adapts to screen size
+- ControlPanel components with touch-optimized sliders, buttons, and inputs
+- TerrainScene components that resize and reposition intuitively for mobile devices
+- Real-time terrain mesh updates based on user input
+- Progress feedback system for erosion simulation and zip extraction with detailed dual-progress overlay showing accurate extraction and loading percentages, current filename with detailed progress messages including individual file status, and performance metrics
+- **Enhanced global progress overlay for offline mode monitoring, local-only operation indicators, startup completion, and comprehensive status messages with recovery progress tracking**
+- **Enhanced debug widget component with real-time log streaming displaying comprehensive offline mode status, local state changes, startup completion, and detailed error messages with precise timestamps and enhanced color-coded status indicators**
+- **Enhanced offline diagnostics display showing offline mode status, local functionality availability, startup progress, and comprehensive readiness verification**
+- JSON export/import functionality for grid configurations
+- Mesh stitching metadata generation for adjacent tile compatibility
+- Performance optimization for large grid sizes across all device types
+- Responsive canvas sizing and containment within preview boundaries with interactive controls
+- Unified typography, spacing, and transitions for seamless cross-device experience
+- **Enhanced offline-aware component rendering based on offline mode status and local functionality availability**
+- **Enhanced UI state management that proceeds to full functionality in offline mode while maintaining all basic app functionality**
+- **Enhanced Terrain Generator with immediate rendering with graceful handling of offline mode and fallback to limited functionality**
+- **Unified Terrain and Dungeon Generator component with mode toggle system featuring primary mode selector with "Terrain" and "Dungeon" options, smooth transition between modes without page reload, mode-specific UI elements that show/hide based on selection, persistent mode selection during session, and clear visual indicators for active mode**
+- **Shared grid management system with configurable n×n grids, interactive grid layout with responsive breakpoints, horizontal responsiveness for large grids using CSS grid auto-fit/auto-fill, scroll containment and zoom-to-fit behavior, mobile-optimized scrollable grid container with adaptive cell sizing, and grid layout alignment with control bar and UI elements**
+- **Mode-specific individual cell controls with terrain mode featuring orbit camera controls, real-time UI controls for noise scale/elevation multiplier/lighting configuration, separate erosion simulation controls for all five erosion types with independent processing, and dungeon mode featuring model selection interface with File Manager integration, rotation controls with real-time preview, tile configuration with adjacency rule validation, and 3D preview integration with interactive model inspection**
+- **WFC-based dungeon assembly integrated into shared grid editor with YAML tileset configuration loading, robust parsing for tiles/adjacency/map_constraints sections, Wave Function Collapse algorithm implementation for structural and decoration passes, interactive dungeon cell configuration with model selection and rotation controls, and dungeon layout visualization with Three.js integration**
+- **Interactive dungeon cell configuration system with model selection interface for choosing 3D dungeon tile models from uploaded assets, rotation controls for adjusting tile orientation, real-time 3D preview showing selected model with applied rotation, model library integration with File Manager, tile compatibility validation based on YAML configuration, and visual feedback for valid/invalid tile placements**
+- **Optimized build process with bundle size optimization using code splitting and lazy loading, cache cleanup strategies, parallel build processing, tree shaking optimization, asset optimization, build performance monitoring, memory usage optimization, and dependency optimization**
+- **Build optimization integration with debug widget showing bundle size reduction progress, cache cleanup status, parallel processing metrics, and deployment readiness indicators**
+- **Grid export and import functionality supporting mode-specific data including terrain parameters or dungeon configuration, complete erosion settings for terrain mode, dungeon cell configuration with model/rotation/tile type/adjacency data for dungeon mode, mode identification in export data, and JSON format optimized for game system parsing**
+- **Deterministic Graph Traversal Engine implementation with mulberry32 RNG, graph JSON loading, sequential node traversal, weighted selection algorithms, ECS component generation, Global Tables integration for tier-based generation enhanced with RPG dataset context, YAML Backend Service integration for configuration processing, and comprehensive debug integration**
+- **Graph traversal logic with deep debugging for node entry, RNG calculations, emitted data accumulation, next node selection, tier application enhanced with RPG dataset context, YAML processing, and final ECS output with Debug Widget real-time streaming**
+- **ECS-compatible component event system generating structured output with Health, Attack, LootTable, AIBehavior, and QuestTriggers components enhanced with tier-based modifications and RPG dataset context**
+- **Debug widget integration for verbose logging and real-time graph traversal visualization showing node selection, weight calculations, tier application enhanced with RPG dataset context, YAML processing, and final ECS component output**
+- **Fixed output display system with dedicated "Resolved Entity", "Raw JSON", and "YAML Output" panels that update reactively with proper React state management, corrected output rendering that reliably displays at bottom of page after traversal, fixed rendering logic ensuring final sections update reactively in collapsible/expandable container with proper formatting and scroll support, copy-to-clipboard functionality with consistent styling, and enhanced panels including RPG dataset context information**
+- **Fixed debugLogger integration capturing graph traversal results, tier application enhanced with RPG dataset context, YAML processing, final outputs, React state updates, and rendering errors for comprehensive offline troubleshooting**
+- **Fixed state management ensuring the graphTraversal function's return value is correctly captured and stored in component state**
+- **Enhanced debug logging to confirm when generation completes and when the output state updates**
+- **Verified output display correctly handles formatted, raw JSON, and YAML views with live updates and no silent render failures**
+- Graph execution controls with parameter configuration interface for each generation type
+- Real-time graph traversal progress feedback and ECS component breakdown display
+- **WFC (Wave Function Collapse) algorithm implementation for dungeon generation with proper constraint satisfaction and tile compatibility handling**
+- **YAML tileset configuration parsing system with support for tiles, adjacency, and map_constraints sections**
+- **Dungeon layout visualization system with Three.js integration for 3D preview and interactive exploration**
+- **Enhanced status indicators for dungeon generation with loading, success, and error states**
+- **Debug output integration for WFC algorithm execution, constraint processing, and generation results**
+- **RuntimeSystem.tsx remains a static optional diagnostics page with zero initialization side effects**
+- **All hooks are clean of any runtime-related background jobs or backend connections**
+- **App.tsx and main.tsx are clean of any imports or calls to runtime systems or backend initialization**
+- **Frontend initializes instantly with local (offline-safe) state only — no runtime connections, no startup polling, no background simulation attempts**
+- **Complete removal of all runtime controller imports, references, or initialization logic from the frontend**
+- **No hooks, effects, or setup calls reference runtime systems in App.tsx, main.tsx, or any component**
+- **UI renders immediately without waiting for backend connectivity with DebugWidget and offline features appearing on load**
+- **RuntimeSystem.tsx functions only as a static diagnostic/monitoring view with no initialization or linkage to any runtime process**
+
+### Backend
+- Internet Identity integration for user authentication and principal verification
+- User session management with principal-based identification
+- Authentication middleware for protecting restricted endpoints
+- User-specific data isolation and access control
+- **Backend connection stability monitoring with stable health check endpoints for connection verification, network availability confirmation, ping response capabilities, connection quality assessment, and health metrics tracking**
+- **Robust backend error handling and recovery mechanisms for connection drops, network issues, initialization failures, and canister unavailability with detailed error reporting and recovery strategies**
+- **Backend heartbeat system for connection health monitoring and automatic recovery with network connectivity verification, ping response endpoints, connection quality assessment, and health metrics monitoring**
+- **Backend logging for network connectivity events, connection events, actor initialization progress, ping request handling, and connection quality assessment**
+- **Backend network connectivity verification endpoints for frontend network availability checks with ping response capabilities and comprehensive diagnostic information**
+- **Connection resilience and automatic retry mechanisms and exponential backoff support for network failures with detailed diagnostic endpoints and recovery progress tracking**
+- **Backend ping endpoints that provide comprehensive latency measurements, connection quality metrics, health assessment, and detailed diagnostic information for frontend connection monitoring**
+- **Backend actor instantiation support with proper error handling, detailed diagnostic endpoints for connection verification, health monitoring, and comprehensive readiness verification**
+- **Backend handshake test endpoints for validating successful canister communication and actor readiness after initialization**
+- **Backend blob URL generation endpoints that provide stable, accessible URLs for 3D model files with proper CORS headers, content-type detection, and performance monitoring**
+- **Enhanced file serving endpoints with proper object URL support for GLB, GLTF, OBJ, and FBX formats with correct MIME type headers and performance optimization**
+- **Backend file retrieval optimization for ModelPreview component with proper blob URL generation and caching strategies**
+- Store and retrieve grid configurations with all cell-specific terrain parameters (authentication required)
+- Handle grid save/load operations with structured data persistence (authentication required)
+- Manage grid metadata including dimensions, cell configurations, and export data
+- Support JSON format storage optimized for game system integration
+- **Enhanced grid storage system supporting mode-specific data including terrain parameters and dungeon configuration with proper mode identification and restoration**
+- **Backend support for unified terrain and dungeon grid configurations with mode-specific cell data persistence**
+- **Grid export and import backend optimization for handling both terrain and dungeon mode data with proper validation and error handling**
+- **Store and retrieve game object generation configurations and results (authentication required)**
+- **Handle game object generation data persistence with ECS-compatible JSON output storage (authentication required)**
+- **Manage game object metadata including generation type (NPC/Dungeon/Quest/Boss Battle/Raid), generation parameters, and execution history**
+- **Backend support for deterministic graph traversal results with component event storage and resolved entity persistence**
+- **Graph configuration storage for NPCs, Dungeons, Quests, Boss Battles, and Raids with entry/nodes/id/weight/emit/next structure**
+- **ECS component data persistence with Health, Attack, LootTable, AIBehavior, and QuestTriggers storage**
+- **Enhanced Dungeon Generation Backend Support:**
+  - **YAML tileset configuration storage and retrieval system for dungeon generation**
+  - **Backend support for tileset data persistence including tiles, adjacency rules, and map constraints**
+  - **WFC algorithm result storage with generated dungeon layout data and metadata**
+  - **Dungeon generation history tracking with configuration parameters and generation results**
+  - **Backend API endpoints for tileset configuration management and dungeon layout retrieval**
+  - **Tileset validation and error reporting backend services for malformed configurations**
+  - **Backend support for dungeon visualization data including room layouts, corridor connections, and spatial relationships**
+  - **Performance monitoring and analytics for dungeon generation operations with WFC execution metrics**
+  - **Backend storage optimization for large dungeon layouts and complex tileset configurations**
+  - **Version control and backup system for tileset configurations and generated dungeon data**
+  - **Backend support for dungeon cell configuration storage including selected models, rotation data, tile types, and adjacency information**
+  - **Model reference storage system for dungeon tiles with proper asset linking and validation**
+  - **Backend API endpoints for dungeon cell configuration management and model selection persistence**
+- **YAML Backend Service endpoints for processing partial YAML configuration files from other backend services**
+- **Generic YAML-based backend responder system capable of receiving, processing, and returning completed YAML configurations**
+- **YAML merging and completion engine backend implementation for combining partial configurations with templates**
+- **Backend queue system for managing YAML processing requests with priority-based ordering and scalability support**
+- **Service integration endpoints for backend-to-backend communication and YAML configuration exchange**
+- **YAML template storage and retrieval system for managing predefined configuration structures**
+- **Backend support for YAML validation, error reporting, and configuration schema enforcement**
+- **Global Tables backend storage system for game object tier definitions and world population rules**
+- **Tier configuration persistence with YAML-based storage and version control capabilities**
+- **Backend API endpoints for tier management, retrieval, and real-time updates across services**
+- **World population dynamics backend support with tier distribution algorithms and spawning rule enforcement**
+- **Tier analytics and monitoring backend with usage statistics, generation frequency tracking, and performance metrics**
+- **Backend integration between Global Tables and Game Object Generator for tier-based generation support**
+- **Multi-user collaboration support for tier management with conflict resolution and change tracking**
+- **RPG Dataset Backend Integration System:**
+  - **Static reference dictionary storage system for the provided RPG_DATASET with efficient indexing and lookup capabilities**
+  - **Weapon-attack compatibility backend validation system ensuring only valid attack types are stored and retrieved for specific weapon categories**
+  - **Sentient item attribute backend system storing personality traits, behavior states, and evolution paths with proper data relationships**
+  - **Faction influence backend system managing alignment mappings, ideology systems, territory bonuses, and relationship stance modifiers**
+  - **Player archetype and playstyle compatibility backend system ensuring generated loot data respects character builds and preferences**
+  - **Sentient conflict dynamics backend system managing personality clashes and faction relationships for interactive world elements**
+  - **Context-aware loot generation backend leveraging RPG dataset relationships for weapon-attack compatibility, faction-alignment matching, and archetype-appropriate rewards**
+  - **Backend API endpoints for RPG dataset queries including weapon compatibility lookups, faction influence calculations, and archetype alignment checks**
+  - **RPG dataset reference indexing system for fast context-aware lookups during generation operations**
+  - **Backend validation system ensuring all generated loot items comply with RPG dataset compatibility rules**
+- **Massive World Loot Table Backend Storage System:**
+  - **Backend storage system for millions of generated loot items with efficient data structures and indexing enhanced with RPG dataset context**
+  - **Procedural loot generation backend with dictionary-based attribute system for attack, defense, elemental, and special traits enhanced with RPG dataset compatibility**
+  - **Tier-based loot generation backend with common, rare, epic, and legendary progression logic enhanced with RPG dataset context**
+  - **Enhanced excellent version generation backend with stat buffs, resistances, debuff abilities, and world-breaking powers validated against RPG dataset rules**
+  - **World-breaking powers backend storage including reduced cooldowns, efficient mana usage, ally summoning, and AoE ultimates with RPG dataset compatibility**
+  - **Massive scale generation backend capable of producing and storing millions of unique loot items with RPG dataset context validation**
+  - **Backend queue system for asynchronous world loot generation with batch processing, incremental caching, and RPG dataset context enforcement**
+  - **World loot table persistence with efficient storage, retrieval, and indexing for millions of items including RPG dataset reference metadata**
+  - **Backend API endpoints for world loot table queries, filtering, pagination, and search functionality enhanced with RPG dataset criteria**
+  - **World loot export backend with YAML and JSON generation for massive datasets including RPG dataset reference mappings**
+  - **Backend analytics system for world loot generation with item distribution statistics, performance monitoring, and RPG dataset utilization tracking**
+  - **Version control and backup system for massive world loot tables with RPG dataset reference preservation**
+  - **Backend optimization for handling millions of loot items with efficient memory management, storage, and RPG dataset context validation**
+  - **Name Uniqueness Backend Validation System:**
+    - **Backend name uniqueness validation system ensuring all generated loot items have unique names across every tier and category**
+    - **Automatic duplicate name detection backend service that validates uniqueness during massive world loot table generation**
+    - **Context-aware fallback naming algorithm backend implementation that appends identifiers (weapon type, faction, rarity) for human-readable uniqueness**
+    - **Intelligent name generation backend using weapon category, attack type, faction alignment, and tier information to create unique identifiers**
+    - **Duplicate resolution backend system that automatically generates alternative names when conflicts are detected**
+    - **Name collision tracking backend with detailed statistics storage for duplicates found and resolved during generation**
+    - **Fallback naming patterns backend that maintain readability while ensuring uniqueness across millions of items**
+    - **Name validation backend integration with RPG dataset context ensuring generated names respect weapon-attack compatibility and faction themes**
+    - **Backend API endpoints for name uniqueness validation, duplicate detection reporting, and resolution statistics**
+    - **Name uniqueness metadata backend storage including duplicate resolution history and fallback pattern effectiveness tracking**
+    - **Backend analytics for name uniqueness showing duplicate detection rates, resolution success rates, and fallback naming pattern effectiveness**
+    - **Real-time name uniqueness validation during batch processing with duplicate detection and resolution tracking**
+    - **Backend support for name uniqueness summary statistics including total items generated, unique names created, and duplicate resolution counts**
+- Blob storage system for 3D asset files (.glb, .gltf, .obj, .fbx) and zip archives
+- File upload endpoints with support for multipart form data including zip files (authentication required)
+- **Enhanced file metadata storage to track extraction source information and complete directory structure**
+- **File ownership metadata management for extracted assets with proper organization**
+- **Storage handling for extracted files with archiveType, relativePath, and isDirectory support**
+- **Backend saveFile interface support for extractionSource metadata linking to original zip archives**
+- File metadata storage including filename, size, upload date, file type, extraction source information, and archive type
+- **Complete directory structure preservation metadata for extracted files with nested folder support**
+- **Archive type tracking with #zip designation for all extracted file entries**
+- File retrieval endpoints for download and preview functionality for both uploaded and extracted files with proper blob URL generation
+- File deletion endpoints with proper cleanup of stored assets including extracted files (authentication required)
+- File listing endpoints with metadata for File Manager display including extraction status and directory structure
+- File size limits and validation for supported 3D asset formats and zip files
+- Secure file storage with proper access controls and validation
+- **Backend support for extracted file organization, metadata tracking, and hierarchical structure preservation**
+- User-specific file and grid data management with principal-based ownership
+- Authentication verification for all protected operations
+- **Backend connection monitoring with diagnostic endpoints for frontend connection health verification, network availability confirmation, ping response capabilities, connection quality metrics, detailed diagnostic information, and recovery progress tracking**
+- **Build optimization backend support with deployment monitoring, bundle size tracking, cache management, and performance metrics collection**
+- **Backend API endpoints for build optimization status reporting, deployment readiness verification, and performance analytics**

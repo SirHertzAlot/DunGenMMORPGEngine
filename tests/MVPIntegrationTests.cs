@@ -118,7 +118,7 @@ namespace DunGen.Tests.MVP
             var item = new ItemComponent
             {
                 ItemId = 1,
-                ItemName = "Iron Sword",
+                ItemName = new Unity.Collections.FixedString64Bytes("Iron Sword"),
                 Quantity = 1,
                 IsEquipped = false
             };
@@ -235,6 +235,18 @@ namespace DunGen.Tests.MVP
             Assert.AreEqual(1, dy);   // Moving towards positive Y
         }
 
+        [Test]
+        public void DungeonGenerator_GenerateTiles_CreatesWalkableInterior()
+        {
+            var generator = new SimpleDungeonGenerator(12345);
+
+            var tiles = generator.GenerateTiles(1, 10, 6);
+
+            Assert.AreEqual(60, tiles.Count);
+            Assert.IsFalse(tiles[0].IsWalkable);
+            Assert.IsTrue(tiles.Exists(tile => tile.GridX == 5 && tile.GridY == 3 && tile.IsWalkable));
+        }
+
         #endregion
 
         #region Game Session Tests
@@ -296,6 +308,99 @@ namespace DunGen.Tests.MVP
 
             // Assert
             Assert.AreEqual(0, session.TurnCount);  // Reset
+        }
+
+        [Test]
+        public void GameSession_MoveCommandRejectsInvalidVector()
+        {
+            var session = new GameSession(12345);
+            session.StartGame();
+
+            var result = session.QueuePlayerMove(0, 0, session.TurnCount);
+
+            Assert.AreEqual(GameSession.PlayerCommandStatus.Invalid, result.Status);
+            Assert.IsFalse(result.IsAccepted);
+        }
+
+        [Test]
+        public void GameSession_MoveCommandRejectsStaleTurn()
+        {
+            var session = new GameSession(12345);
+            session.StartGame();
+
+            var staleTurn = session.TurnCount + 1;
+            var result = session.QueuePlayerMove(1, 0, staleTurn);
+
+            Assert.AreEqual(GameSession.PlayerCommandStatus.Stale, result.Status);
+            Assert.IsFalse(result.IsAccepted);
+        }
+
+        [Test]
+        public void GameSession_MoveCommandRejectsDuplicateInSameTurn()
+        {
+            var session = new GameSession(12345);
+            session.StartGame();
+
+            var first = session.QueuePlayerMove(1, 0, session.TurnCount);
+            var second = session.QueuePlayerMove(1, 0, session.TurnCount);
+
+            Assert.IsTrue(first.IsAccepted);
+            Assert.AreEqual(GameSession.PlayerCommandStatus.Duplicate, second.Status);
+        }
+
+        [Test]
+        public void GameSession_MoveCommandRejectsBlockedTile()
+        {
+            var session = new GameSession(12345);
+            session.StartGame();
+
+            // Step repeatedly to the right wall first.
+            for (int i = 0; i < 50; i++)
+            {
+                var move = session.QueuePlayerMove(1, 0, session.TurnCount);
+                if (!move.IsAccepted)
+                    break;
+
+                session.ExecuteTurn();
+            }
+
+            var blocked = session.QueuePlayerMove(1, 0, session.TurnCount);
+            Assert.AreEqual(GameSession.PlayerCommandStatus.Blocked, blocked.Status);
+        }
+
+        [Test]
+        public void GameSession_ScriptedCommandSequenceIsDeterministicForSeed()
+        {
+            static GameState RunScriptedSequence(int seed)
+            {
+                var session = new GameSession(seed);
+                session.StartGame();
+
+                session.QueuePlayerMove(1, 0, session.TurnCount);
+                session.ExecuteTurn();
+
+                session.QueuePlayerMove(0, 1, session.TurnCount);
+                session.ExecuteTurn();
+
+                session.QueuePlayerAttack();
+                session.ExecuteTurn();
+
+                session.QueuePlayerAttack();
+                session.ExecuteTurn();
+
+                return session.GetGameState();
+            }
+
+            var stateA = RunScriptedSequence(12345);
+            var stateB = RunScriptedSequence(12345);
+
+            Assert.AreEqual(stateA.PlayerX, stateB.PlayerX);
+            Assert.AreEqual(stateA.PlayerY, stateB.PlayerY);
+            Assert.AreEqual(stateA.PlayerHealth, stateB.PlayerHealth);
+            Assert.AreEqual(stateA.PlayerXP, stateB.PlayerXP);
+            Assert.AreEqual(stateA.PlayerGold, stateB.PlayerGold);
+            Assert.AreEqual(stateA.LivingEnemies, stateB.LivingEnemies);
+            Assert.AreEqual(stateA.TurnCount, stateB.TurnCount);
         }
 
         #endregion

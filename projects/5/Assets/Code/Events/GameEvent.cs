@@ -75,4 +75,28 @@ namespace DunGen.Events
         public float Timestamp;
         public Entity SourceEntity;
     }
+
+    /// <summary>Event: Loot granted to an entity.</summary>
+    public struct LootGrantedEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int RecipientEntityId;
+        public int LootTableId;
+        public int GoldAmount;
+    }
+
+    /// <summary>Event: Experience-based level up occurred.</summary>
+    public struct LevelUpEventData
+    {
+        public ulong EventId;
+        public uint FrameNumber;
+        public float Timestamp;
+        public int EntityId;
+        public int PreviousLevel;
+        public int NewLevel;
+        public int RemainingXP;
+        public int XPToNextLevel;
+    }
 }

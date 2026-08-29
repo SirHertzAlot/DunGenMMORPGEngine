@@ -1,5 +1,8 @@
 # ECS Refactoring - Complete Testing Summary
 
+> Historical snapshot: this testing summary is scoped to the ECS refactor milestone.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 ## ✅ Status: ALL TESTS PASSED
 
 ---

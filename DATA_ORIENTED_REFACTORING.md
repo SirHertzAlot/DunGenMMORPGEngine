@@ -1,5 +1,8 @@
 # ECS Data-Oriented Refactoring: Complete
 
+> Historical snapshot: this document is scoped to the event-system refactor milestone.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 **Status:** ✅ COMPLETE - True ECS architecture implemented  
 **Date:** April 14, 2026
 
@@ -181,7 +184,7 @@ _eventBus.Publish(evt);  // EventBus just passes data through
 | `EventBus.cs` | Changed `where T : GameEvent` → `where T : struct` |
 | `EventLog.cs` | Now uses reflection to serialize struct data (no methods) |
 | `Simulation.cs` | Now explicitly assigns EventId before publishing |
-| `CombatSystem.cs` | All events now use XXXEventData structs + explicit EventId |
+| `CombatSystem.cs` | All events now use `*EventData` structs with explicit `EventId` assignment |
 | `DeterminismTests.cs` | Updated to use new struct types |
 | `SimulationIntegrationTests.cs` | Updated to use new struct types |
 | `CombatSystemTests.cs` | Updated subscription types to new structs |

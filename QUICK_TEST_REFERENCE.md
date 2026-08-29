@@ -1,5 +1,8 @@
 # QUICK START TESTING REFERENCE
 
+> Historical quick-reference snapshot (ECS refactor phase).
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 ## 🚀 Test Everything in 3 Commands
 
 ### 1️⃣ Quick Verification (1 second)

@@ -1,5 +1,8 @@
 # Week 4: Advanced Combat System - Implementation Plan
 
+> Historical planning snapshot: this document reflects the original Week 4 plan.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 ## 🎯 Objectives
 1. **Action System** - Turn-based action economy
 2. **Turn Queue** - Proper turn order management  

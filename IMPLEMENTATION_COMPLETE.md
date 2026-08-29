@@ -1,5 +1,8 @@
 # IMPLEMENTATION COMPLETE - Week 1-2 Foundation
 
+> Historical snapshot: this report documents the Week 1-2 foundation milestone.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 ## What Was Built
 
 **DunGenMMORPGEngine: Week 1-2 Deterministic Simulation Foundation**

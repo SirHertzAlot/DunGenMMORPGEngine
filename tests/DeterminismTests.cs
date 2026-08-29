@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using DunGen.Core;
+using DunGen.Simulation.RNG;
 using DunGen.Events;
 
 namespace DunGen.Tests
@@ -138,7 +139,7 @@ namespace DunGen.Tests
             log.AdvanceFrame();
 
             Assert.AreEqual(1, log.GetEvents().Count);
-            Assert.AreEqual(0, log.GetEvents()[0].FrameNumber);
+            Assert.AreEqual(0u, ((SimulationInitializedEventData)log.GetEvents()[0]).FrameNumber);
         }
 
         [Test]

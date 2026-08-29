@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e17897d244393042a8d95d705185bd5, type: 3}
+  m_Name: DunGenNetworkingConfig
+  m_EditorClassIdentifier: Assembly-CSharp::DunGen.Networking.BackendConnectionConfig
+  authoritativeBaseUrl: http://127.0.0.1:8081
+  adminUiBaseUrl: http://127.0.0.1:8083
+  adminApiKey: dev-admin-key
+  pollIntervalSeconds: 1
+  requestTimeoutSeconds: 10
+  defaultSessionId: session-001

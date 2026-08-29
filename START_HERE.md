@@ -1,131 +1,89 @@
-# 🎉 DunGenMMORPGEngine: Week 1-2 Implementation Complete
+# DunGenMMORPGEngine: Start Here
 
-**Status**: ✅ **READY FOR PRODUCTION**
+**Status**: Validated alpha track with canonical status in [OBJECTIVES_REALIGNMENT_PLAN.md](OBJECTIVES_REALIGNMENT_PLAN.md)
 
 ---
 
 ## 📖 Quick Navigation
 
 **New to this project?** Start here:
-1. Read [README_ALPHA.md](README_ALPHA.md) (10 min) — Overview of 8-week plan
-2. Read [WEEK1_FOUNDATION.md](WEEK1_FOUNDATION.md) (15 min) — Architecture deep-dive
-3. Run [HOW_TO_RUN_LOCALLY.md](HOW_TO_RUN_LOCALLY.md) (15 min) — Setup & verify locally
+1. Read [OBJECTIVES_REALIGNMENT_PLAN.md](OBJECTIVES_REALIGNMENT_PLAN.md) first — canonical execution plan and current priorities
+2. Read [README_ALPHA.md](README_ALPHA.md) second — validated roadmap snapshot and alpha gates
+3. Run [HOW_TO_RUN_LOCALLY.md](HOW_TO_RUN_LOCALLY.md) to set up and verify locally
+
+**Need the current source-of-truth status and next priorities?**
+→ Read [OBJECTIVES_REALIGNMENT_PLAN.md](OBJECTIVES_REALIGNMENT_PLAN.md)
 
 **Want the full executive summary?**
-→ See [WEEK1_COMPLETE.md](WEEK1_COMPLETE.md) (comprehensive status report)
+→ See [WEEK1_COMPLETE.md](WEEK1_COMPLETE.md) (historical milestone report; not the live plan)
 
 **Want implementation details?**
-→ See [IMPLEMENTATION_STATUS_WEEK1.md](IMPLEMENTATION_STATUS_WEEK1.md) (checklist + metrics)
+→ See [IMPLEMENTATION_STATUS_WEEK1.md](IMPLEMENTATION_STATUS_WEEK1.md) (historical checklist + metrics)
 
 ---
 
-## 🚀 What's Been Delivered
+## What Has Been Delivered
 
 ### Core Implementation
-✅ **Deterministic RNG** — Seeded, reproducible, proven
-✅ **Fixed 60 Hz Timestep** — Simulation loop ready
-✅ **Event System** — Logging + replay capability
-✅ **ECS Components** — 15 types, ready for systems
-✅ **Configuration** — 5 YAML files with all game content
-✅ **Test Suite** — 22 tests, 100% passing
+✅ **Deterministic RNG** — Seeded, reproducible, validated
+✅ **Fixed 60 Hz timestep** — Simulation loop in place
+✅ **Event system** — Logging and replay primitives
+✅ **ECS components** — Core entity data and gameplay scaffolding
+✅ **Configuration** — YAML content loader and content templates
+✅ **Test suite** — Unity EditMode, Unity PlayMode, and authoritative backend coverage
 
 ### Documentation
-✅ 4 comprehensive guides (architecture, setup, status, how-to)
-✅ XML comments on all code
-✅ YAML config structure documented
+✅ Canonical status and planning docs are identified
+✅ Historical milestone docs are retained for context
+✅ Local setup and validation guidance exists
 
 ### Quality
-✅ 75% code coverage
-✅ 100% test pass rate
-✅ Zero technical debt
-✅ CI/CD configured
+✅ Validated test slices are green
+✅ Deterministic foundation is in place
+✅ Documentation has a defined source of truth
 
 ---
 
-## 💾 File Structure
+## File Structure
 
 ```
-projects/5/                  ← Unity 2022.3.15f1 project
-├── Assets/Code/
-│   ├── Core/                ← RNG, Simulation (determinism core)
-│   ├── ECS/                 ← 15 components + systems scaffolding
-│   ├── Events/              ← Event bus + logging system
-│   ├── Config/              ← Config loader (skeleton)
-│   └── Startup/             ← MonoBehaviour for testing
-├── Packages/manifest.json   ← DOTS dependencies
-└── ProjectVersion.txt       ← Unity 2022.3.15f1
+Assets/DunGenMMORPGEngine/   ← Project docs, content, and imported support assets
+├── README_ALPHA.md           ← Validated roadmap snapshot
+├── OBJECTIVES_REALIGNMENT_PLAN.md ← Canonical execution plan
+├── HOW_TO_RUN_LOCALLY.md     ← Setup and verification guide
+├── config/                   ← YAML content and tooling
+└── ported-from-zip-unmodified/ ← Imported support/template material
 
-config/                      ← Game content (YAML)
-├── characters.yaml          ← 4 classes
-├── items.yaml               ← 11 items + loot tables
-├── enemies.yaml             ← 6 enemies
-├── spells.yaml              ← 8 spells
-└── dungeons.yaml            ← Generation rules
+Unity project and backend code live elsewhere in the workspace and are referenced by the canonical docs above.
 
-tests/                       ← Unit + integration tests
-├── DeterminismTests.cs      ← 12 tests
-├── SimulationIntegrationTests.cs ← 10 tests
-└── Tests.asmdef.json
-
-Documentation/
-├── README_ALPHA.md              ← Start here!
-├── WEEK1_FOUNDATION.md          ← Architecture guide
-├── WEEK1_COMPLETE.md            ← Full status report
-├── IMPLEMENTATION_STATUS_WEEK1.md ← Detailed checklist
-└── HOW_TO_RUN_LOCALLY.md        ← Setup guide
+Historical milestone docs remain in this folder for reference, but they are not the live status dashboard.
 ```
 
 ---
 
-## ✅ Quick Verification
+## Quick Verification
 
 **To verify everything works locally:**
 
 ```bash
-# 1. Open in Unity 2022.3.15f1
-open -a "Unity" projects/5  # macOS
-# or use Unity Hub on Windows/Linux
-
-# 2. Wait for import (2-5 min)
-# You should see no errors in the Console tab
-
-# 3. Run tests
-# Window → General → Test Runner → EditMode → Run All
-
-# Expected: All 22 tests pass ✓
+# 1. Open the Unity project from the workspace root
+# 2. Run EditMode and PlayMode tests in Unity
+# 3. Run the authoritative backend tests from the backend test project
 ```
 
-See [HOW_TO_RUN_LOCALLY.md](HOW_TO_RUN_LOCALLY.md) for detailed instructions.
+See [HOW_TO_RUN_LOCALLY.md](HOW_TO_RUN_LOCALLY.md) for detailed instructions and current validation commands.
 
 ---
 
-## 🧪 Test Results
+## Test Results
 
-**22/22 tests passing** ✅
+Validated slices are green:
 
-| Category | Count | Status |
-|----------|-------|--------|
-| Determinism | 10 | ✅ |
-| Combat Determinism | 2 | ✅ |
-| Integration | 10 | ✅ |
+- Unity PlayMode: 122/122 passed
+- Unity EditMode: 11/11 passed
+- Authoritative backend tests: 6/6 passed
 
-**Code Coverage**: 75% (target: 70%+)
-
----
-
-## 🔐 Key Achievement: Determinism Verified
-
-**Proof**: Same seed always produces identical results
-- Tested with 1000+ iterations
-- Full combat scenarios verified
-- Event logs can reconstruct any session
-- 100% reproducibility guaranteed
-
-**This is the foundation for everything else.**
-
----
-
-## 📚 Key Concepts
+## Key Concepts
 
 ### DeterministicRNG
 ```csharp
@@ -156,117 +114,86 @@ string json = log.ExportToJson();  // Save for replay/analysis
 
 ---
 
-## 🗺️ The 8-Week Plan
+## The 8-Week Plan
 
 | Week | Focus | Status |
 |------|-------|--------|
-| **1-2** | **Foundation** | ✅ **COMPLETE** |
-| 3 | Combat System | Next (d20 + damage rolls) |
-| 4 | Procedural Generation | (Dungeons + loot) |
-| 5 | Player & Exploration | (Movement + leveling) |
-| 6 | Networking | (WebSocket, multiplayer) |
-| 7 | Client UI | (2D renderer, inventory) |
-| 8 | Polish & Release | (Testing, balance, demo) |
+| **1-2** | **Foundation** | ✅ **Implemented** |
+| 3 | Combat system | ✅ **Implemented** |
+| 4 | Procedural generation | 🟡 **Partially implemented** |
+| 5 | Player & exploration | 🟡 **Partially implemented** |
+| 6 | Networking | 🟡 **In progress** |
+| 7 | Client UI | ⬜ **Planned** |
+| 8 | Polish & release | ⬜ **Planned** |
 
-**Week 3 Kick-off**: Combat system integration
-**Input**: This foundation (determinism guaranteed)
-**Output**: Combat playground with damage rolls
+The canonical alpha exit gates are defined in [OBJECTIVES_REALIGNMENT_PLAN.md](OBJECTIVES_REALIGNMENT_PLAN.md).
 
 ---
 
-## 🎓 For Next Developer (Week 3)
+## For Next Developer
 
 ### Before You Start
-1. Run the verification steps above
-2. Read [WEEK1_FOUNDATION.md](WEEK1_FOUNDATION.md)
-3. Understand [comprehensive_implementation_plan.md](comprehensive_implementation_plan.md) → Combat section
+1. Read [OBJECTIVES_REALIGNMENT_PLAN.md](OBJECTIVES_REALIGNMENT_PLAN.md)
+2. Read [README_ALPHA.md](README_ALPHA.md)
+3. Run the local verification steps above
 
 ### Key Points
-- **Don't modify RNG algorithm** (breaks determinism!)
-- **All events flow through EventBus** (no direct calls)
-- **Config is YAML, not hardcoded** (characters.yaml, items.yaml, etc.)
-- **Tests first, then code** (TDD approach)
-- **Determinism is sacred** — every test must verify it
+- Keep the canonical docs in sync with implementation.
+- Preserve determinism and replayability.
+- Prefer data-driven content over hardcoded values.
+- Tie every feature claim to tests or a reproducible validation path.
 
-### Getting Started with Combat
-1. Create `Assets/Code/ECS/Systems/CombatSystem.cs`
-2. Implement attack resolution using RNG
-3. Add tests in `tests/CombatTests.cs` (mirror existing pattern)
-4. Iterate on balance based on test scenarios
+### Next Implementation Focus
+1. Close the minimal authoritative multiplayer slice.
+2. Add a deterministic shared encounter and replay log.
+3. Expose session state and encounter outcome through a minimal client flow.
 
 ---
 
-## 🏁 Success Criteria Met
+## Success Criteria Met
 
-- [x] Determinism proven (100%)
-- [x] Event system working (logging + replay)
-- [x] Configuration templates ready
-- [x] Test suite passing (22/22)
-- [x] Code coverage adequate (75%)
-- [x] Documentation clear (4 guides)
-- [x] CI/CD configured (GitHub Actions)
-- [x] Zero technical debt
-- [x] Ready for Week 3
+- [x] Deterministic foundation established
+- [x] Event system supports logging and replay
+- [x] Configuration templates exist
+- [x] Validated automated tests are passing on the checked slices
+- [x] Canonical planning docs now point to the same source of truth
 
 ---
 
-## 📊 By the Numbers
+## By the Numbers
 
-- **704 lines** of core C# code
-- **499 lines** of test code
-- **762 lines** of game configuration (YAML)
-- **~5,000 lines** of documentation
-- **22 tests** (100% passing)
-- **75%** code coverage
-
-**Total**: ~6,500 lines delivered in Week 1-2
+- Core engine, backend, and template assets are present across the workspace
+- Validation has been run on Unity and backend slices
+- Canonical status now lives in the two plan docs above
 
 ---
 
-## 🚀 Next Steps
+## Next Steps
 
-### For Week 3 Developer
-1. Pull latest from main
-2. Run verification (should see 22/22 tests passing)
-3. Review combat mechanics from `comprehensive_implementation_plan.md`
-4. Create CombatSystem in ECS/Systems/
-5. Implement attack + damage resolution
-6. Add 15+ combat scenario tests
+### For Contributors
+1. Read the canonical plan in [OBJECTIVES_REALIGNMENT_PLAN.md](OBJECTIVES_REALIGNMENT_PLAN.md).
+2. Use [README_ALPHA.md](README_ALPHA.md) for the validated alpha snapshot.
+3. Keep implementation claims tied to tests or a reproducible validation path.
 
-### For Project Manager
-- Week 1-2: ✅ Complete
-- Week 3: ⏳ Waiting (ready to start)
-- Week 4: 📋 Procedural generation (depends on Week 3)
-- Week 5: 📋 Exploration (depends on Week 4)
+### For the Project
+- Close the minimal authoritative multiplayer slice.
+- Add deterministic shared encounter replay validation.
+- Keep roadmap docs synchronized with scope changes.
 
 ---
 
-## 💬 Questions?
+## Questions?
 
 See the appropriate guide:
-- **Architecture**: [WEEK1_FOUNDATION.md](WEEK1_FOUNDATION.md)
-- **Setup Issues**: [HOW_TO_RUN_LOCALLY.md](HOW_TO_RUN_LOCALLY.md)
-- **Status Details**: [IMPLEMENTATION_STATUS_WEEK1.md](IMPLEMENTATION_STATUS_WEEK1.md)
-- **Full Overview**: [WEEK1_COMPLETE.md](WEEK1_COMPLETE.md)
-- **8-Week Plan**: [README_ALPHA.md](README_ALPHA.md)
+- **Canonical status**: [OBJECTIVES_REALIGNMENT_PLAN.md](OBJECTIVES_REALIGNMENT_PLAN.md)
+- **Validated roadmap**: [README_ALPHA.md](README_ALPHA.md)
+- **Setup and verification**: [HOW_TO_RUN_LOCALLY.md](HOW_TO_RUN_LOCALLY.md)
+- **Historical milestone context**: [WEEK1_COMPLETE.md](WEEK1_COMPLETE.md)
 
 ---
 
-## ✨ Summary
+## Summary
 
-**Week 1-2 Implemented**: A production-ready foundation for the DunGenMMORPGEngine.
-
-**Determinism Guarantee**: ✅ Same seed = identical results (proven)
-**Replayability**: ✅ Full event logs enable session replay
-**Extensibility**: ✅ Configuration-driven, modular systems
-**Quality**: ✅ 75% coverage, 100% test pass rate
-
-**Ready for**: Week 3 combat system implementation
-
----
-
-**Implement Date**: April 14-28, 2026
-**Status**: ✅ Production Ready
-**Next Milestone**: Week 3 Combat System
+This project has a validated deterministic foundation, but the alpha is not complete until the multiplayer exit gates in [OBJECTIVES_REALIGNMENT_PLAN.md](OBJECTIVES_REALIGNMENT_PLAN.md) are met.
 
 🚀 **Let's build!**

@@ -8,6 +8,9 @@
     "DunGen.ECS",
     "DunGen.Events"
   ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

@@ -1,5 +1,8 @@
 # Week 3: Combat System - Implementation Complete
 
+> Historical snapshot: this week-level completion report is retained for audit/history.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 **Date:** April 14, 2026  
 **Status:** ✅ COMPLETE & READY FOR TESTING  
 **Test Results:** 25+ test scenarios defined (ready for execution)  

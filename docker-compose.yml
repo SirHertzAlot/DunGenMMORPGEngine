@@ -1,0 +1,224 @@
+services:
+  scylla:
+    image: scylladb/scylla:5.1
+    container_name: scylla
+    command: ["--smp", "1", "--memory", "1G"]
+    ports:
+      - "9042:9042"
+    volumes:
+      - scylla-data:/var/lib/scylla
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: mmouser
+      POSTGRES_PASSWORD: mmopass
+      POSTGRES_DB: mmodb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - redis-exporter
+      - postgres-exporter
+      - rabbitmq-exporter
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  unity-headless:
+    # Set UNITY_HEADLESS_IMAGE env var or use: docker compose --profile headless up
+    profiles: [headless]
+    image: ${UNITY_HEADLESS_IMAGE:-unityci/editor:ubuntu-6000.0.23f1-server-1.0}
+    container_name: unity-headless
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - postgres
+      - rabbitmq
+    # Expose typical game/gRPC ports; adjust as needed
+    ports:
+      - "7777:7777"
+      - "50051:50051"
+    volumes:
+      - ../TOR-MMO-ENGINE:/workspace/TOR-MMO-ENGINE:ro
+      - unity-headless-data:/home/unity/data
+    environment:
+      - UNITY_BUILD_PATH=/workspace/TOR-MMO-ENGINE/Build/Server
+      - UNITY_LOGLEVEL=Info
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50051 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  generator-service:
+    build:
+      context: ./services/generator-service
+    container_name: generator-service
+    restart: unless-stopped
+    ports:
+      - "8090:3000"
+    environment:
+      - PORT=3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  authoritative-primary:
+    build:
+      context: ./services/authoritative
+    container_name: authoritative-primary
+    restart: unless-stopped
+    depends_on:
+      - rabbitmq
+      - redis
+      - postgres
+      - generator-service
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - METRICS_PORT=9464
+      - ADMIN_API_KEY=dev-admin-key
+      - ASPNETCORE_URLS=http://+:80
+      - EXTERNAL_GENERATOR_BASE_URL=http://generator-service:3000
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - AGENT_MODEL=${AGENT_MODEL:-gpt-4o}
+      - WORKSPACE_PATH=/workspace
+    volumes:
+      - .:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8081:80"
+      - "9464:9464"
+    healthcheck:
+      test: ["CMD-SHELL", "exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  authoritative-secondary:
+    build:
+      context: ./services/authoritative
+    container_name: authoritative-secondary
+    restart: unless-stopped
+    depends_on:
+      - rabbitmq
+      - redis
+      - postgres
+      - generator-service
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - METRICS_PORT=9464
+      - ADMIN_API_KEY=dev-admin-key
+      - ASPNETCORE_URLS=http://+:80
+      - EXTERNAL_GENERATOR_BASE_URL=http://generator-service:3000
+    ports:
+      - "8082:80"
+      - "9465:9464"
+    healthcheck:
+      test: ["CMD-SHELL", "exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  admin-ui:
+    build:
+      context: ./services/admin-ui
+    container_name: admin-ui
+    restart: unless-stopped
+    depends_on:
+      - authoritative-primary
+    ports:
+      - "8080:80"
+
+  admin-ui-zip:
+    build:
+      context: .
+      dockerfile: ./services/admin-ui-zip/Dockerfile
+    container_name: admin-ui-zip
+    restart: unless-stopped
+    depends_on:
+      - authoritative-primary
+    ports:
+      - "8083:80"
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    container_name: redis-exporter
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: postgres-exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://mmouser:mmopass@postgres:5432/mmodb?sslmode=disable
+    ports:
+      - "9187:9187"
+    depends_on:
+      - postgres
+
+  rabbitmq-exporter:
+    image: kbudde/rabbitmq-exporter:latest
+    container_name: rabbitmq-exporter
+    environment:
+      - RABBIT_URL=http://rabbitmq:15672
+      - RABBIT_USER=guest
+      - RABBIT_PASSWORD=guest
+      - PUBLISH_PORT=9419
+      - OUTPUT_FORMAT=TTY
+    ports:
+      - "9419:9419"
+    depends_on:
+      - rabbitmq
+
+volumes:
+  scylla-data:
+  redis-data:
+  pgdata:
+  unity-headless-data:
+  prometheus-data:
+  grafana-data:

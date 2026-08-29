@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/needle-tools/unity-project-validation/main/Schemas/assembly-definition-schema.json",
+  "name": "DunGen.Networking.Editor",
+  "rootNamespace": "DunGen.Networking.Editor",
+  "references": [
+    "DunGen.Networking"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

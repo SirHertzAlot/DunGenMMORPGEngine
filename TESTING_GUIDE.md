@@ -1,5 +1,8 @@
 # ECS Data-Oriented Refactoring - Testing Guide
 
+> Historical snapshot: this testing guide is scoped to the ECS refactor phase.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 ## ✅ Verification Status
 All 10 core architecture tests **PASSED**:
 - ✅ No abstract base classes
@@ -289,7 +292,7 @@ Result: 100% PASSED - ECS data-oriented design is working
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| "Type not found: XXXEventData" | Old class names still in use | Update to use `XXXEventData` struct |
+| "Type not found: AttackResolvedEventData" | Old class names still in use | Update the reference to the matching `*EventData` struct |
 | "Cannot call method on struct" | Trying to call non-existent method | Use direct field access instead |
 | "EventBus.Publish not found" | Generic constraints wrong | Ensure `where T : struct` in signature |
 | Test compilation fails | Missing EventId in event initialization | Add `EventId = bus.GetNextEventId()` |

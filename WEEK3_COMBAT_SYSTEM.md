@@ -1,5 +1,8 @@
 # Week 3: Combat System Implementation Plan
 
+> Historical planning snapshot: this document reflects the original Week 3 plan.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 ## Overview
 Build a fully deterministic, D&D-inspired combat system with turn-based action queuing, attack resolution using d20 mechanics, and damage calculation driven by character stats and equipment.
 

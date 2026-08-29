@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using DunGen.Simulation.RNG;
 using DunGen.Events;
+using DunGen.Events.Combat;
 using DunGen.ECS.Systems.Combat;
 
 namespace DunGen.Tests.Combat
@@ -194,17 +195,15 @@ namespace DunGen.Tests.Combat
             // Arrange
             var resolver1 = new AttackResolver(TEST_SEED);
             var resolver2 = new AttackResolver(TEST_SEED);
-            int targetAC = 12;
+            int targetAC = 14;
 
             // Act
-            var (isHit1, _, _, _) = resolver1.ResolveAttack(3, targetAC); // STR +3
-            var (isHit2, _, _, _) = resolver2.ResolveAttack(2, targetAC); // STR +2
+            var (isHit1, d20_1, _, _) = resolver1.ResolveAttack(3, targetAC); // STR +3
+            var (isHit2, d20_2, _, _) = resolver2.ResolveAttack(2, targetAC); // STR +2
 
-            // Assert - With same seed and different modifiers, results should differ
-            // (unless d20 roll happens to be high/low enough to overcome difference)
-            Assert.AreEqual(isHit1, isHit2); // They might match by chance
-            int d20_1 = (isHit1 && 1 == 0) ? 20 : 10; // Placeholder logic
-            // The key test: higher modifier should make it easier to hit
+            Assert.AreEqual(d20_1, d20_2, "Same seed should produce the same d20 roll");
+            Assert.GreaterOrEqual(d20_1 + 3, d20_2 + 2, "Higher strength modifier should not reduce the final attack roll");
+            Assert.IsTrue(isHit1 || !isHit2, "If the lower modifier hits, the higher modifier should also hit");
         }
 
         [Test]
@@ -263,7 +262,6 @@ namespace DunGen.Tests.Combat
             var calc = new DamageCalculator(TEST_SEED);
 
             // Act - Roll multiple times
-            int total = 0;
             const int numRolls = 100;
             var calc_runs = new DamageCalculator[numRolls];
             for (int i = 0; i < numRolls; i++)
@@ -351,7 +349,7 @@ namespace DunGen.Tests.Combat
             int targetAC = 30; // Impossibly high
 
             // Act
-            var (resolver, _, _) = (new AttackResolver(TEST_SEED), null, null);
+            var resolver = new AttackResolver(TEST_SEED);
             var (isHit, _, _, _) = resolver.ResolveAttack(0, targetAC); // 0 modifier vs 30 AC
 
             // Assert
@@ -443,8 +441,13 @@ namespace DunGen.Tests.Combat
             var orchestrator = new CombatOrchestrator(seed, eventBus);
             for (int round = 0; round < 3; round++)
             {
-                var resolver = new AttackResolver(seed);
-                var (isHit, _, _, _) = resolver.ResolveAttack(5, 12);
+                orchestrator.ExecuteAttack(
+                    attackerId: 1,
+                    defenderId: 2,
+                    strModifier: 5,
+                    defenderAC: 12,
+                    weaponName: "Longsword",
+                    weaponDamageNotation: "1d8");
             }
 
             // Assert - Events should be logged
@@ -490,7 +493,6 @@ namespace DunGen.Tests.Combat
             // Arrange
             int totalHealth = 40;
             int damagePerHit = 8;
-            int hitChance = 75; // 75% hit rate
 
             // Act
             int estimatedRounds = (totalHealth + (damagePerHit - 1)) / damagePerHit;
@@ -632,12 +634,12 @@ namespace DunGen.Tests.Combat
         // Event collector for testing event logging
         private class _EventCollector
         {
-            private System.Collections.Generic.List<GameEvent> Events = new();
-            public int EventCount => Events.Count;
+            private readonly System.Collections.Generic.List<object> _events = new();
+            public int EventCount => _events.Count;
 
-            public void AddEvent(GameEvent evt)
+            public void AddEvent<T>(T evt) where T : struct
             {
-                Events.Add(evt);
+                _events.Add(evt);
             }
         }
 

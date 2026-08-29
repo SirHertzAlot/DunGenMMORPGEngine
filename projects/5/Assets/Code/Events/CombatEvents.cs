@@ -14,6 +14,12 @@ namespace DunGen.Events.Combat
         public int[] ParticipantEntityIds;
         public int[] InitiativeOrder;
         public int CombatSessionId;
+        public int ParticipantCount;
+        public bool IsBossEncounter;
+        /// <summary>Tile position of the initiating combatant (for witness detection).</summary>
+        public int CombatPositionX;
+        public int CombatPositionY;
+        public int DungeonLevel;
     }
 
     /// <summary>Event: Single combatant's initiative is rolled.</summary>

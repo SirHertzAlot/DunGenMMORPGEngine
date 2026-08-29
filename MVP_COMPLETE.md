@@ -1,5 +1,8 @@
 # 🎮 DunGenMMORPGEngine MVP - COMPLETE & PLAYABLE
 
+> Historical snapshot: this file reflects a milestone report at time of writing and may contain stale counts/statuses.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 **Status:** ✅ **READY FOR UNITY TESTING**  
 **Build Date:** April 14, 2026  
 **Total Implementation:** 8 weeks of designs condensed into playable core  

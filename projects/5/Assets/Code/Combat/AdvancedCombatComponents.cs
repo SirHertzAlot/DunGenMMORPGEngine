@@ -1,4 +1,5 @@
 using Unity.Entities;
+using Unity.Collections;
 using System.Collections.Generic;
 
 namespace DunGen.ECS.Combat
@@ -23,10 +24,10 @@ namespace DunGen.ECS.Combat
     {
         public ActionType Type;
         public int TargetEntityId;
-        public string Name;
+        public FixedString64Bytes Name;
         public int ActionCost;           // 0 = reaction, 1 = action, 2 = bonus action
         public int ManaCost;
-        public string EffectDescription;
+        public FixedString128Bytes EffectDescription;
         public uint ExecutedAtFrame;
         public bool IsResolved;
     }
@@ -277,6 +278,7 @@ namespace DunGen.ECS.Combat
     /// </summary>
     public struct CombatRoundComponent : IComponentData
     {
+        public int ActiveCombatantId;
         public int RoundNumber;
         public int TotalParticipants;
         public int CurrentTurnIndex;

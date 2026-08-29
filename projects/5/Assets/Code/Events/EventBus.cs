@@ -16,6 +16,12 @@ namespace DunGen.Events
         private readonly Dictionary<Type, List<Delegate>> _listeners = new();
         private ulong _nextEventId = 1;
 
+        /// <summary>
+        /// Raised for every published event, regardless of concrete event type.
+        /// Useful for observability bridges and generic logging pipelines.
+        /// </summary>
+        public event Action<Type, object> AnyEventPublished;
+
         public EventBus()
         {
         }
@@ -56,6 +62,8 @@ namespace DunGen.Events
                         typedHandler(@event);
                 }
             }
+
+            AnyEventPublished?.Invoke(eventType, @event);
         }
 
         /// <summary>
@@ -72,6 +80,7 @@ namespace DunGen.Events
         public void Clear()
         {
             _listeners.Clear();
+            AnyEventPublished = null;
             _nextEventId = 1;
         }
 

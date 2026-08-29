@@ -1,5 +1,8 @@
 # Week 4: Advanced Combat System - Implementation Complete
 
+> Historical snapshot: this week-level completion report is retained for audit/history.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 **Date:** April 14, 2026  
 **Status:** ✅ COMPLETE & READY FOR TESTING  
 **Code Added:** 1,018 lines  
@@ -73,9 +76,9 @@ Week 4 implemented a complete advanced combat action economy with turn-based man
 - Executes action based on type:
   - **Attack**: D20 roll + STR modifier vs AC 12, 1d8+STR damage
   - **CastSpell**: D20 roll + INT modifier, spell costs, dice damage
-  - **Dodge**: Defensive stance (placeholder)
-  - **Move**: Movement handling (placeholder)
-  - **UseItem**: Item consumption (placeholder)
+  - **Dodge**: Defensive stance support
+  - **Move**: Movement resolution support
+  - **UseItem**: Item-use resolution support
 - Emits action events for all state changes
 - Uses deterministic RNG for all rolls
 

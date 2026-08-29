@@ -126,6 +126,7 @@ namespace DunGen.ECS.Components
     public struct DungeonTile : IComponentData
     {
         public uint TileType; // 0=wall, 1=floor, 2=door, 3=stairs, etc.
+        public int LevelNumber;
         public int GridX;
         public int GridY;
         public bool IsWalkable;

@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 
@@ -72,7 +73,7 @@ namespace DunGen.ECS.Exploration
     public struct ItemComponent : IComponentData
     {
         public int ItemId;
-        public string ItemName;
+        public FixedString64Bytes ItemName;
         public int Quantity;
         public bool IsEquipped;
         public bool IsOnGround;

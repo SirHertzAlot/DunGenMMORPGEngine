@@ -1,5 +1,7 @@
 using NUnit.Framework;
 using DunGen.Core;
+using CoreSimulation = DunGen.Core.Simulation;
+using DunGen.Simulation.RNG;
 using DunGen.Events;
 using Unity.Entities;
 
@@ -11,12 +13,12 @@ namespace DunGen.Tests
     /// </summary>
     public class SimulationIntegrationTests
     {
-        private Simulation _sim;
+        private CoreSimulation _sim;
 
         [SetUp]
         public void Setup()
         {
-            _sim = new Simulation();
+            _sim = new CoreSimulation();
         }
 
         [TearDown]
@@ -62,8 +64,8 @@ namespace DunGen.Tests
         public void DeterministicDiceRolls_WithSameSeed_ProduceIdenticalSequence()
         {
             // Simulate combat round 1: attack roll checks
-            var rng1 = _sim.GetRNG();
             _sim.Initialize(999);
+            var rng1 = _sim.GetRNG();
 
             int[] rolls1 = new int[10];
             for (int i = 0; i < 10; i++)
@@ -72,7 +74,7 @@ namespace DunGen.Tests
             }
 
             // Create new simulation with same seed
-            var sim2 = new Simulation();
+            var sim2 = new CoreSimulation();
             sim2.Initialize(999);
             var rng2 = sim2.GetRNG();
 
@@ -126,7 +128,7 @@ namespace DunGen.Tests
             var log1 = _sim.GetEventLog().ExportToJson();
 
             // Simulation 2 - Same seed
-            var sim2 = new Simulation();
+            var sim2 = new CoreSimulation();
             sim2.Initialize(54321);
             var rng2 = sim2.GetRNG();
 
@@ -211,7 +213,7 @@ namespace DunGen.Tests
             string json1 = log1.ExportToJson();
 
             // Run 2 with same seed
-            var sim2 = new Simulation();
+            var sim2 = new CoreSimulation();
             sim2.Initialize(SEED);
             var log2 = sim2.GetEventLog();
 

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/needle-tools/unity-project-validation/main/Schemas/assembly-definition-schema.json",
+  "name": "DunGen.Networking",
+  "rootNamespace": "DunGen.Networking",
+  "references": [
+    "DunGen.Core",
+    "DunGen.Events"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using DunGen.ECS.Components;
 using DunGen.Events;
+using DunGen.Simulation.RNG;
 using Unity.Entities;
 
 namespace DunGen.Core
@@ -27,6 +29,7 @@ namespace DunGen.Core
         {
             _eventLog = new EventLog();
             _eventBus = EventBus.Instance;
+            _rng = new DeterministicRNG(0UL);
             
             // Create/get ECS world
             _world = World.DefaultGameObjectInjectionWorld;
@@ -92,12 +95,30 @@ namespace DunGen.Core
         /// <summary>Create a new entity with basic components.</summary>
         public Entity CreateEntity(string name, Vector3 position)
         {
-            var entity = _entityManager.CreateEntity();
-            
-            // Add basic components (we'll define these next)
-            // _entityManager.AddComponentData(entity, new Position { Value = position });
-            // _entityManager.AddComponentData(entity, new Name { Value = name });
-            
+            var entity = _entityManager.CreateEntity(typeof(Position), typeof(Name));
+
+            _entityManager.SetComponentData(entity, new Position
+            {
+                X = position.X,
+                Y = position.Y,
+                Z = position.Z
+            });
+
+            Name.Values = name;
+
+            var createdEvent = new EntityCreatedEventData
+            {
+                EventId = _eventBus.GetNextEventId(),
+                FrameNumber = _frameNumber,
+                Timestamp = _frameNumber * FIXED_TIMESTEP,
+                SourceEntity = entity,
+                EntityType = "Generic",
+                Name = name
+            };
+
+            _eventBus.Publish(createdEvent);
+            _eventLog.RecordEvent(createdEvent);
+
             return entity;
         }
 
@@ -109,7 +130,11 @@ namespace DunGen.Core
         }
 
         /// <summary>Get the deterministic RNG for this simulation.</summary>
-        public DeterministicRNG GetRNG() => _rng;
+        public DeterministicRNG GetRNG()
+        {
+            _rng ??= new DeterministicRNG(_currentSeed);
+            return _rng;
+        }
 
         /// <summary>Get the event log.</summary>
         public EventLog GetEventLog() => _eventLog;
@@ -139,7 +164,7 @@ namespace DunGen.Core
         public string ExportLog() => _eventLog.ExportToJson();
     }
 
-    // Placeholder vector for early prototyping (will use Unity.Mathematics later)
+    // Lightweight local vector type used by simulation-facing APIs.
     public struct Vector3
     {
         public float X, Y, Z;

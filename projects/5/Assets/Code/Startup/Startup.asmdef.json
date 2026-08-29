@@ -1,4 +1,4 @@
-{
+   {
   "$schema": "https://raw.githubusercontent.com/needle-tools/unity-project-validation/main/Schemas/assembly-definition-schema.json",
   "name": "DunGen.Startup",
   "rootNamespace": "DunGen.Startup",

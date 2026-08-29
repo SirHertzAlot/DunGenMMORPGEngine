@@ -479,6 +479,8 @@ namespace DunGen.Tests.Combat
 
             // Assert
             Assert.AreEqual(3, turnsTaken);
+            Assert.IsTrue(queue.IsRoundComplete());
+            queue.ResetForNewRound();  // Mirrors RoundTransitionSystem behaviour
             Assert.AreEqual(0, queue.CurrentTurnIndex);  // Reset to start
         }
 

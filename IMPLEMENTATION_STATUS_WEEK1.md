@@ -1,5 +1,8 @@
 # Week 1-2 Implementation Status: COMPLETE ✓
 
+> Historical snapshot: this week-level status report is retained for audit/history.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 **Timeline**: April 14-28, 2026 (First Sprint)
 **Delivered**: Deterministic simulation foundation with event replay system
 **Status**: Ready for Week 3 (Combat System)

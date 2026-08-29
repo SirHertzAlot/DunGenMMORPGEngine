@@ -1,15 +1,36 @@
 # MVP READY FOR DOWNLOAD & UNITY TESTING
 
+## STATUS UPDATE (June 8, 2026)
+
+This document contains historical claims from earlier milestones. The current MVP push status is:
+
+- Implemented: local offline bootstrap path so play mode can start without backend auth hard-block.
+- Implemented: deterministic turn-command boundary validation for movement (invalid, stale, duplicate, blocked).
+- Implemented: runtime player/enemy visual markers and prefab-less dungeon fallback primitives.
+- Implemented: deterministic scripted-sequence tests in the Unity Editor test suite folder.
+- Implemented: replay hash surfaced in runtime HUD and export-log flow.
+
+Current known blocker for CI-style validation:
+
+- Unity batch test execution can fail before tests run when no valid Editor license is available on the machine.
+
+Practical local run flow:
+
+1. Open the project in Unity Editor.
+2. Press Play in any scene (runtime bootstrap auto-creates the simulation starter when missing).
+3. Use W/A/S/D and F/left-click for MVP command flow validation.
+4. Use Unity Test Runner (EditMode) for `DunGen.Tests.Editor` tests.
+
 ## ✅ WHAT'S BEEN COMPLETED
 
-**DunGenMMORPGEngine: Playable MVP - Fully Ready**
+### DunGenMMORPGEngine: Playable MVP - Current Push Snapshot
 
 ### Implementation Summary
-- **17 C# implementation files** (3,090 lines)
-- **6 test files** (140+ unit tests)
-- **Zero errors** - all code clean and tested
-- **100% deterministic** - same seed produces same results
-- **Ready to play** - press Play in Unity
+- Core MVP gameplay/runtime loop implemented and playable in-editor.
+- Deterministic session behavior validated by targeted EditMode tests.
+- Runtime fallback visuals implemented for missing prefabs/assets.
+- Replay hash display and replay export-to-disk implemented.
+- Ready to play in Unity Editor (manual Play mode).
 
 ### Core Features Implemented
 ✅ Deterministic RNG with seeding  
@@ -86,9 +107,13 @@ Level 1 | HP: 100/100 | Lvl: 1 | XP: 0 | Gold: 0 | Turn: 25
 
 ### Run All Tests in Unity
 1. Window → General → Test Runner
-2. EditMode tests will show 140+ tests
+2. Run EditMode tests from `DunGen.Tests.Editor` first
 3. Click "Run All"
-4. Expected: All green checkmarks ✅
+4. Expected: green checks in-editor when local Unity environment is healthy
+
+Batch-mode caveat:
+
+- Headless/batch test execution may fail before tests start if Unity licensing entitlement is unavailable on the machine.
 
 ### Test Suites
 - DeterminismTests (12 tests) ✅

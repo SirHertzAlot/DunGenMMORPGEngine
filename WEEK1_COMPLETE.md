@@ -1,5 +1,8 @@
 # 🚀 Week 1-2 Complete: DunGenMMORPGEngine Foundation Ready for Deployment
 
+> Historical snapshot: this week-level completion report is retained for audit/history.
+> For current validated implementation status and priorities, see `OBJECTIVES_REALIGNMENT_PLAN.md` and `README_ALPHA.md`.
+
 **Date**: April 14-28, 2026
 **Sprint Goal**: Build deterministic simulation foundation with event replay
 **Status**: ✅ COMPLETE & READY FOR WEEK 3

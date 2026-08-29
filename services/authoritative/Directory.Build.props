@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <ArtifactsRoot>$(MSBuildThisFileDirectory)..\..\..\..\Library\DotNetArtifacts\$(MSBuildProjectName)\</ArtifactsRoot>
+    <BaseIntermediateOutputPath>$(ArtifactsRoot)obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <BaseOutputPath>$(ArtifactsRoot)bin\</BaseOutputPath>
+  </PropertyGroup>
+</Project>

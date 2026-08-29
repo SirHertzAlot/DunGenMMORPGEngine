@@ -1,0 +1,112 @@
+{
+  "skills": [
+    {
+      "skillId": "sword.apprentice.buff.edge-focus",
+      "itemType": "sword",
+      "masteryTier": "apprentice",
+      "effectKind": "Buff",
+      "name": "Edge Focus",
+      "description": "Increase sword critical chance for two turns.",
+      "basePower": 8
+    },
+    {
+      "skillId": "sword.apprentice.debuff.open-guard",
+      "itemType": "sword",
+      "masteryTier": "apprentice",
+      "effectKind": "EnemyDebuff",
+      "name": "Open Guard",
+      "description": "Lower enemy armor after a successful sword hit.",
+      "basePower": 6
+    },
+    {
+      "skillId": "sword.apprentice.attack.rising-cut",
+      "itemType": "sword",
+      "masteryTier": "apprentice",
+      "effectKind": "Attack",
+      "name": "Rising Cut",
+      "description": "A heavier follow-up slash with bonus damage.",
+      "basePower": 14
+    },
+    {
+      "skillId": "sword.apprentice.special.feint-step",
+      "itemType": "sword",
+      "masteryTier": "apprentice",
+      "effectKind": "SpecialAction",
+      "name": "Feint Step",
+      "description": "Dash one tile and gain brief evasion.",
+      "basePower": 1
+    },
+    {
+      "skillId": "staff.master.buff.arcane-resonance",
+      "itemType": "staff",
+      "masteryTier": "master",
+      "effectKind": "Buff",
+      "name": "Arcane Resonance",
+      "description": "Amplify spell potency and mana efficiency.",
+      "basePower": 16
+    },
+    {
+      "skillId": "staff.master.debuff.hex-fracture",
+      "itemType": "staff",
+      "masteryTier": "master",
+      "effectKind": "EnemyDebuff",
+      "name": "Hex Fracture",
+      "description": "Reduce target resistance and concentration.",
+      "basePower": 12
+    },
+    {
+      "skillId": "staff.master.attack.arc-bolt",
+      "itemType": "staff",
+      "masteryTier": "master",
+      "effectKind": "Attack",
+      "name": "Arc Bolt",
+      "description": "Channel an empowered arcane projectile.",
+      "basePower": 22
+    },
+    {
+      "skillId": "staff.master.special.phase-weave",
+      "itemType": "staff",
+      "masteryTier": "master",
+      "effectKind": "SpecialAction",
+      "name": "Phase Weave",
+      "description": "Reposition and prime the next cast.",
+      "basePower": 1
+    },
+    {
+      "skillId": "bow.legendary.buff.hawkeye-aura",
+      "itemType": "bow",
+      "masteryTier": "legendary",
+      "effectKind": "Buff",
+      "name": "Hawkeye Aura",
+      "description": "Greatly improve precision and range control.",
+      "basePower": 20
+    },
+    {
+      "skillId": "bow.legendary.debuff.pinning-mark",
+      "itemType": "bow",
+      "masteryTier": "legendary",
+      "effectKind": "EnemyDebuff",
+      "name": "Pinning Mark",
+      "description": "Reduce enemy mobility and defense.",
+      "basePower": 15
+    },
+    {
+      "skillId": "bow.legendary.attack.starfall-volley",
+      "itemType": "bow",
+      "masteryTier": "legendary",
+      "effectKind": "Attack",
+      "name": "Starfall Volley",
+      "description": "Launch a high-impact arrow barrage.",
+      "basePower": 30
+    },
+    {
+      "skillId": "bow.legendary.special.windline",
+      "itemType": "bow",
+      "masteryTier": "legendary",
+      "effectKind": "SpecialAction",
+      "name": "Windline",
+      "description": "Snap to vantage and refresh one attack action.",
+      "basePower": 1
+    }
+  ]
+}
