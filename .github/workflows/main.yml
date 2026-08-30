@@ -48,3 +48,20 @@ jobs:
         with:
           name: Coverage results for ${{ matrix.testMode }}
           path: ${{ steps.tests.outputs.coveragePath }}
+
+  backend-build-test:
+    name: Backend build and test (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build Authoritative
+        run: dotnet build services/authoritative/Authoritative.csproj -c Release --nologo
+      - name: Build Authoritative tests
+        run: dotnet build services/authoritative/tests/Authoritative.Tests.csproj -c Release --nologo
+      - name: Test Authoritative
+        run: dotnet test services/authoritative/tests/Authoritative.Tests.csproj -c Release --nologo --no-build

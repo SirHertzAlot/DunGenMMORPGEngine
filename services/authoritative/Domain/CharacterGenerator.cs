@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Authoritative.Multiplayer;
 
 namespace Authoritative.Domain
 {
@@ -75,6 +76,8 @@ namespace Authoritative.Domain
 
     public sealed class CharacterGenerator
     {
+        private const int DefaultBaseSeed = 4217;
+
         private static readonly string[] Classes = { "Warrior", "Mage", "Rogue", "Priest", "Ranger", "Paladin", "Warlock", "Druid" };
         private static readonly string[] Races = { "Human", "Elf", "Dwarf", "Orc", "Halfling", "Gnome", "Tiefling", "Dragonborn" };
         private static readonly string[] Backgrounds = { "Soldier", "Scholar", "Outlander", "Criminal", "Noble", "Acolyte", "Guild Artisan", "Hermit" };
@@ -120,17 +123,17 @@ namespace Authoritative.Domain
         {
             int count   = Math.Clamp(request.Count, 1, 20);
             int level   = Math.Clamp(request.Level, 1, 60);
-            int baseSeed = request.Seed ?? new Random().Next(1, int.MaxValue);
+            int baseSeed = request.Seed ?? DefaultBaseSeed;
             var result  = new List<GeneratedCharacter>(count);
             for (int i = 0; i < count; i++)
             {
-                var rng = new Random(baseSeed + i * 7919);
+                var rng = new DeterministicRng((ulong)(uint)(baseSeed + i * 7919));
                 result.Add(GenerateOne(rng, level, request.Class, request.Race, baseSeed + i * 7919));
             }
             return result;
         }
 
-        private GeneratedCharacter GenerateOne(Random rng, int level, string? classOverride, string? raceOverride, int seed)
+        private GeneratedCharacter GenerateOne(DeterministicRng rng, int level, string? classOverride, string? raceOverride, int seed)
         {
             var cls  = string.IsNullOrWhiteSpace(classOverride) ? Classes[rng.Next(Classes.Length)] : classOverride.Trim();
             var race = string.IsNullOrWhiteSpace(raceOverride)  ? Races[rng.Next(Races.Length)]   : raceOverride.Trim();
@@ -172,7 +175,7 @@ namespace Authoritative.Domain
                 {
                     var part = kv.Value;
                     if (part.Files == null || part.Files.Count == 0) continue;
-                    var idx = Random.Shared.Next(part.Files.Count);
+                    var idx = rng.NextInt(part.Files.Count);
                     generated.AssetParts.Add(new CharacterAssetPart
                     {
                         PartId = part.Id,
@@ -193,7 +196,7 @@ namespace Authoritative.Domain
             return generated;
         }
 
-        private static CharacterStats RollStats(Random rng, string cls, string race, int level)
+        private static CharacterStats RollStats(DeterministicRng rng, string cls, string race, int level)
         {
             int Roll()
             {
@@ -239,7 +242,7 @@ namespace Authoritative.Domain
             return s;
         }
 
-        private static int CalcHp(Random rng, string cls, int con, int level)
+        private static int CalcHp(DeterministicRng rng, string cls, int con, int level)
         {
             int conMod = (con - 10) / 2;
             int die = cls is "Warrior" or "Paladin" ? 10 : cls is "Mage" ? 6 : 8;
@@ -261,7 +264,7 @@ namespace Authoritative.Domain
             };
         }
 
-        private static List<string> PickSkills(Random rng, string cls, int level)
+        private static List<string> PickSkills(DeterministicRng rng, string cls, int level)
         {
             if (!ClassSkills.TryGetValue(cls, out var pool)) pool = new[] { "Attack", "Defend" };
             int take = Math.Min(pool.Length, 2 + level / 5);
@@ -279,7 +282,7 @@ namespace Authoritative.Domain
             return result;
         }
 
-        private static CharacterEquipment GenEquipment(Random rng, string cls, int level, int seed)
+        private static CharacterEquipment GenEquipment(DeterministicRng rng, string cls, int level, int seed)
         {
             int tierIdx = Math.Clamp(level / 12 + rng.Next(-1, 2), 0, Tiers.Length - 1);
             string tier = Tiers[tierIdx];

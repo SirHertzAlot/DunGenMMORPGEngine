@@ -253,6 +253,11 @@ namespace Authoritative.Tests
             public Task<IReadOnlyList<WorldRoomRow>> GetRoomsAsync(string sessionId, CancellationToken ct) => Task.FromResult<IReadOnlyList<WorldRoomRow>>(new List<WorldRoomRow>());
             public Task<IReadOnlyList<WorldEnemyRow>> GetEnemiesAsync(string sessionId, CancellationToken ct) => Task.FromResult<IReadOnlyList<WorldEnemyRow>>(new List<WorldEnemyRow>());
             public Task<IReadOnlyList<WorldLootRow>> GetLootAsync(string sessionId, CancellationToken ct) => Task.FromResult<IReadOnlyList<WorldLootRow>>(new List<WorldLootRow>());
+            public Task<string?> GetEntitySnapshotAsync(string sessionId, string entityId, CancellationToken ct) => Task.FromResult<string?>(null);
+            public Task<Dictionary<string, string>?> GetSessionMetadataAsync(string sessionId, CancellationToken ct) => Task.FromResult<Dictionary<string, string>?>(null);
+            public Task<bool> InsertEntitySnapshotAsync(string sessionId, string entityId, string entityType, string stateJson, int version = 1, int ttlSeconds = 0, CancellationToken ct = default) => Task.FromResult(true);
+            public Task<bool> UpsertSessionMetadataAsync(string sessionId, System.Collections.Generic.IDictionary<string, string> properties, CancellationToken ct) => Task.FromResult(true);
+            public Task<IReadOnlyList<string>> GetAllSessionIdsAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<string>>(new List<string>());
         }
 
         private sealed class MockLogger<T> : ILogger<T>

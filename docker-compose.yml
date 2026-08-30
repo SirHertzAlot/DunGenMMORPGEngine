@@ -7,6 +7,12 @@ services:
       - "9042:9042"
     volumes:
       - scylla-data:/var/lib/scylla
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/9042'"]
+      start_period: 60s
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
@@ -15,6 +21,12 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      start_period: 5s
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres:
     image: postgres:15
@@ -27,6 +39,12 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mmouser -d mmodb"]
+      start_period: 15s
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -34,6 +52,12 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      start_period: 30s
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   prometheus:
     image: prom/prometheus:latest
@@ -47,6 +71,12 @@ services:
       - redis-exporter
       - postgres-exporter
       - rabbitmq-exporter
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO - http://localhost:9090/-/healthy >/dev/null 2>&1 || exit 1"]
+      start_period: 15s
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   grafana:
     image: grafana/grafana:latest
@@ -62,6 +92,12 @@ services:
       - "3000:3000"
     depends_on:
       - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO - http://localhost:3000/api/health >/dev/null 2>&1 || exit 1"]
+      start_period: 30s
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   unity-headless:
     # Set UNITY_HEADLESS_IMAGE env var or use: docker compose --profile headless up
@@ -130,10 +166,11 @@ services:
       - "8081:80"
       - "9464:9464"
     healthcheck:
-      test: ["CMD-SHELL", "exit 0"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:80/healthz >/dev/null 2>&1 || exit 1"]
+      start_period: 30s
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
 
   authoritative-secondary:
     build:
@@ -155,10 +192,11 @@ services:
       - "8082:80"
       - "9465:9464"
     healthcheck:
-      test: ["CMD-SHELL", "exit 0"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:80/healthz >/dev/null 2>&1 || exit 1"]
+      start_period: 30s
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
 
   admin-ui:
     build:
@@ -169,6 +207,12 @@ services:
       - authoritative-primary
     ports:
       - "8080:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO - http://localhost/ >/dev/null 2>&1 || exit 1"]
+      start_period: 10s
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   admin-ui-zip:
     build:
@@ -180,9 +224,15 @@ services:
       - authoritative-primary
     ports:
       - "8083:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO - http://localhost/ >/dev/null 2>&1 || exit 1"]
+      start_period: 10s
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   redis-exporter:
-    image: oliver006/redis_exporter:v1.62.0
+    image: oliver006/redis_exporter:v1.62.0-alpine
     container_name: redis-exporter
     environment:
       - REDIS_ADDR=redis://redis:6379
@@ -190,6 +240,12 @@ services:
       - "9121:9121"
     depends_on:
       - redis
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO - http://localhost:9121/metrics >/dev/null 2>&1 || exit 1"]
+      start_period: 10s
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
@@ -200,6 +256,12 @@ services:
       - "9187:9187"
     depends_on:
       - postgres
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO - http://localhost:9187/metrics >/dev/null 2>&1 || exit 1"]
+      start_period: 10s
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   rabbitmq-exporter:
     image: kbudde/rabbitmq-exporter:latest
@@ -214,6 +276,12 @@ services:
       - "9419:9419"
     depends_on:
       - rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO - http://localhost:9419/metrics >/dev/null 2>&1 || exit 1"]
+      start_period: 10s
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
 volumes:
   scylla-data:

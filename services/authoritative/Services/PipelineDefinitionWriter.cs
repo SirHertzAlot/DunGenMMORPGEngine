@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using Authoritative.Multiplayer;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -45,7 +46,7 @@ namespace Authoritative.Services
         public GeneratedPipelineDefinition WriteApprovedDefinition(PipelineRequestRecord approvedRequest, string approvedBy, int? overrideSeed)
         {
             var request = approvedRequest.RequestedConfig;
-            var seed = overrideSeed ?? request.Seed ?? Random.Shared.Next(1, int.MaxValue);
+            var seed = overrideSeed ?? request.Seed ?? (int)(new DeterministicRng(0L).Next() % int.MaxValue);
 
             var definition = new PipelineDefinition
             {

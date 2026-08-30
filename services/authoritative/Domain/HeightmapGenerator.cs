@@ -1,5 +1,6 @@
 #if !UNITY_5_3_OR_NEWER
 using System;
+using Authoritative.Multiplayer;
 
 namespace Authoritative.Domain
 {
@@ -54,11 +55,13 @@ namespace Authoritative.Domain
 
     public sealed class HeightmapGenerator
     {
+        private const int DefaultBaseSeed = 1337;
+
         public GeneratedTerrainMesh Generate(HeightmapRequest request)
         {
             int w     = Math.Clamp(request.Width,  8, 512);
             int h     = Math.Clamp(request.Height, 8, 512);
-            int seed  = request.Seed ?? new Random().Next(1, int.MaxValue);
+            int seed  = request.Seed ?? DefaultBaseSeed;
             float wl  = Math.Clamp(request.WaterLevel, 0f, 1f);
             float rough = Math.Clamp(request.Roughness, 0.1f, 1f);
             var algo  = (request.Algorithm ?? "diamond-square").Trim().ToLowerInvariant();
@@ -214,7 +217,7 @@ namespace Authoritative.Domain
             size++;
 
             var grid = new float[size, size];
-            var rng  = new Random(seed);
+            var rng  = new DeterministicRng((ulong)(uint)seed);
             float scale = 1f;
 
             grid[0, 0]           = (float)rng.NextDouble();
@@ -265,7 +268,7 @@ namespace Authoritative.Domain
             float amp    = 1f;
             float freq   = 4f / Math.Max(w, h);
             float maxAmp = 0f;
-            var rng      = new Random(seed);
+            var rng      = new DeterministicRng((ulong)(uint)seed);
 
             for (int o = 0; o < octaves; o++)
             {

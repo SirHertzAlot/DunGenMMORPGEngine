@@ -25,17 +25,20 @@ namespace Authoritative.Services
         readonly ConcurrentDictionary<string, PersistedGeneratedItem> _items = new();
         readonly object _fileLock = new();
         readonly string _filePath;
+        readonly bool _persistToDisk;
 
         public GeneratedItemStore()
             : this(Path.Combine(AppContext.BaseDirectory, "data"))
         {
         }
 
-        public GeneratedItemStore(string dataDirectory)
+        public GeneratedItemStore(string dataDirectory, bool persistToDisk = true)
         {
             Directory.CreateDirectory(dataDirectory);
             _filePath = Path.Combine(dataDirectory, "generated-items.json");
-            LoadExistingItems();
+            _persistToDisk = persistToDisk;
+            if (_persistToDisk)
+                LoadExistingItems();
         }
 
         public void SaveGeneratedItem(Item item, IReadOnlyDictionary<string, string>? metadata = null)
@@ -48,7 +51,8 @@ namespace Authoritative.Services
             };
 
             _items[item.Id] = stored;
-            PersistSnapshot();
+            if (_persistToDisk)
+                PersistSnapshot();
         }
 
         public bool TryGetItem(string itemId, out PersistedGeneratedItem? storedItem)

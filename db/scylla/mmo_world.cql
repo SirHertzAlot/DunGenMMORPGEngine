@@ -68,3 +68,22 @@ CREATE TABLE IF NOT EXISTS session_metadata (
     properties   map<text, text>,
     last_updated timestamp
 );
+
+-- Mastery tables used by MasteryPersistenceService (upsert offers and unlocked skills)
+CREATE TABLE IF NOT EXISTS mastery_offers (
+    offer_id      text PRIMARY KEY,
+    user_id       text,
+    item_type     text,
+    mastery_tier  text,
+    created_at    timestamp,
+    options_json  text
+);
+
+CREATE TABLE IF NOT EXISTS mastery_unlocked (
+    user_id      text,
+    item_type    text,
+    skill_id     text,
+    skill_json   text,
+    unlocked_at  timestamp,
+    PRIMARY KEY ((user_id, item_type), skill_id)
+);

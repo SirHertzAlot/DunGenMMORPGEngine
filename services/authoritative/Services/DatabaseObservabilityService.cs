@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Authoritative.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -29,6 +30,7 @@ namespace Authoritative.Services
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<DatabaseObservabilityService> _log;
         private readonly string _prometheusBaseUrl;
+        private readonly string? _postgresConnectionString;
 
         public DatabaseObservabilityService(
             IHttpClientFactory httpClientFactory,
@@ -38,6 +40,9 @@ namespace Authoritative.Services
             _httpClientFactory = httpClientFactory;
             _log = log;
             _prometheusBaseUrl = configuration["PROMETHEUS_BASE_URL"] ?? "http://prometheus:9090";
+            _postgresConnectionString = PostgresConnectionString.Resolve(configuration);
+            if (_postgresConnectionString != null && string.IsNullOrWhiteSpace(configuration["POSTGRES_CONNECTION_STRING"]))
+                _log.LogWarning("POSTGRES_CONNECTION_STRING is not configured; using development database credentials for Postgres maintenance.");
         }
 
         public async Task<DatabaseObservabilitySnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
@@ -469,10 +474,12 @@ namespace Authoritative.Services
             if (RequiresConfirmation(action) && !request.Confirmed)
                 return ConfirmationRequired("postgres", action);
 
+            if (_postgresConnectionString == null)
+                return FailedResult("postgres", action, "Postgres connection string not configured.");
+
             try
             {
-                var connectionString = "Host=postgres;Port=5432;Username=mmouser;Password=mmopass;Database=mmodb;Timeout=5;Command Timeout=120";
-                await using var conn = new NpgsqlConnection(connectionString);
+                await using var conn = new NpgsqlConnection(_postgresConnectionString);
                 await conn.OpenAsync(cancellationToken);
 
                 var sql = action switch

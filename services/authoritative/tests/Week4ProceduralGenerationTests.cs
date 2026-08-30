@@ -19,7 +19,7 @@ namespace Authoritative.Tests
     /// Week 4: Procedural Generation Depth - Backend Service Tests
     /// Validates that the dungeon generation service produces correct room layouts,
     /// enemy compositions, and loot distributions.
-    /// Reference: WEEK4_EXECUTION_PLAN.md
+    /// Reference: docs/index.md (wiki home)
     /// </summary>
     public class Week4ProceduralGenerationTests
     {
@@ -983,10 +983,10 @@ namespace Authoritative.Tests
             try
             {
                 // GIVEN a generator service
-                var itemStore = new GeneratedItemStore(Path.Combine(_tempDirectory, "items"));
+                var itemStore = new GeneratedItemStore(Path.Combine(_tempDirectory, "items"), persistToDisk: false);
                 var observability = new AdminObservabilityService();
                 var adapter = new LocalWorldGenerationAdapter(new ItemGenerator(), itemStore);
-                var executionService = new PipelineExecutionService(adapter, observability, Path.Combine(_tempDirectory, "worlds"));
+                var executionService = new PipelineExecutionService(adapter, observability, Path.Combine(_tempDirectory, "worlds"), writeArtifacts: false);
                 var generatorService = new HeadlessGeneratorService(executionService, observability);
 
                 var runtimeSnapshot = CreateValidPipelineSnapshot();

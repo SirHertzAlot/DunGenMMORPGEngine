@@ -24,6 +24,7 @@ namespace Authoritative.Services
         private readonly ConcurrentDictionary<string, PipelineExecutionRecord> _executions = new(StringComparer.Ordinal);
         private readonly object _fileLock = new();
         private readonly string _outputDirectory;
+        private readonly bool _writeArtifacts;
 
         public PipelineExecutionService(IWorldGenerationAdapter worldGenerationAdapter)
             : this(worldGenerationAdapter, null, null, Path.Combine(AppContext.BaseDirectory, "data", "world-builds"))
@@ -38,8 +39,9 @@ namespace Authoritative.Services
         public PipelineExecutionService(
             IWorldGenerationAdapter worldGenerationAdapter,
             IAdminObservabilityService? observability,
-            string outputDirectory)
-            : this(worldGenerationAdapter, observability, null, outputDirectory)
+            string outputDirectory,
+            bool writeArtifacts = true)
+            : this(worldGenerationAdapter, observability, null, outputDirectory, writeArtifacts)
         {
         }
 
@@ -47,12 +49,14 @@ namespace Authoritative.Services
             IWorldGenerationAdapter worldGenerationAdapter,
             IAdminObservabilityService? observability,
             IScyllaWorldPersistenceService? scylla,
-            string outputDirectory)
+            string outputDirectory,
+            bool writeArtifacts = true)
         {
             _worldGenerationAdapter = worldGenerationAdapter;
             _observability = observability;
             _scylla = scylla;
             _outputDirectory = outputDirectory;
+            _writeArtifacts = writeArtifacts;
             Directory.CreateDirectory(_outputDirectory);
         }
 
@@ -82,13 +86,14 @@ namespace Authoritative.Services
                 Notes = request.Notes?.Trim() ?? string.Empty,
                 StartedAtUtc = startedAt,
                 CompletedAtUtc = DateTime.UtcNow,
-                ArtifactPath = artifactPath,
+                ArtifactPath = _writeArtifacts ? artifactPath : string.Empty,
                 Status = "completed",
                 StepResults = BuildStepResults(definition, world),
                 World = world
             };
 
-            PersistExecution(record);
+            if (_writeArtifacts)
+                PersistExecution(record);
             _executions[executionId] = record;
             _observability?.RecordExecution(record);
             _scylla?.EnqueueWorld(record);

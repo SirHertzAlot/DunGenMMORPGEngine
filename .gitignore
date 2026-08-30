@@ -27,3 +27,10 @@ package-lock.json
 *.userprefs
 *.pdb
 *.mdb
+
+# .NET service tree (sits inside the Unity Assets folder): keep Unity meta +
+# build output out of the repo
+services/**/*.meta
+services/**/bin/
+services/**/obj/
+services/**/Logs/

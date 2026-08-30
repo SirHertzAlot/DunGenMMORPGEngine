@@ -10,8 +10,12 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Authoritative.Diagnostics;
+using Authoritative.GraphQL;
+using Authoritative.Multiplayer;
 using Authoritative.Security;
 using Authoritative.Services;
+using HotChocolate.AspNetCore;
+using HotChocolate.CostAnalysis;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http;
@@ -51,14 +55,6 @@ builder.Services.AddCors(options =>
 });
 
 // list all sessions
-app.MapGet("/v1/world/sessions", async (
-    IScyllaWorldPersistenceService scylla,
-    CancellationToken cancellationToken) =>
-{
-    var ids = await scylla.GetAllSessionIdsAsync(cancellationToken);
-    return Results.Ok(ids);
-});
-
 builder.Services.AddSingleton<Authoritative.Domain.IItemGenerator, Authoritative.Domain.ItemGenerator>();
 builder.Services.AddSingleton<IGeneratedItemStore, GeneratedItemStore>();
 builder.Services.AddSingleton<IAdminObservabilityService, AdminObservabilityService>();
@@ -112,10 +108,46 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<MasteryPersistence
 builder.Services.AddSingleton<IMasteryService, MasteryService>();
 builder.Services.AddSingleton<IUserAccountService, UserAccountService>();
 builder.Services.AddSingleton<IClientRequestSecurityService, ClientRequestSecurityService>();
+builder.Services.AddSingleton<IAuthoritativeActionService, AuthoritativeActionService>();
+builder.Services.AddSingleton<DataLoaderCounters>();
+
+// GraphQL API layer (HotChocolate). Joins the existing REST action API with a
+// cursor-paginated, DataLoader-backed schema for session/world/event reads and
+// server-authoritative action submission. Introspection stays visible only in
+// dev or when GRAPHQL_ENABLE_PLAYGROUND is set, so it is not exposed in prod.
+var graphqlEnabled = string.Equals(builder.Environment.EnvironmentName, "Development", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(builder.Configuration["GRAPHQL_ENABLE_PLAYGROUND"], "true", StringComparison.OrdinalIgnoreCase);
+
+var graphqlServer = builder.Services
+    .AddGraphQLServer()
+    .AddQueryType<GraphQLQuery>()
+    .AddMutationType<GraphQLMutation>()
+    .AddDataLoader<RoomsBySessionDataLoader>()
+    .AddDataLoader<EnemiesBySessionDataLoader>()
+    .AddDataLoader<LootBySessionDataLoader>()
+    .AddDataLoader<EventsBySessionDataLoader>()
+    .AddMaxExecutionDepthRule(32)
+    .ModifyCostOptions(o => o.MaxFieldCost = 10000)
+    .ModifyRequestOptions(o =>
+    {
+        o.ExecutionTimeout = TimeSpan.FromSeconds(30);
+    });
+
+if (!graphqlEnabled)
+    graphqlServer.DisableIntrospection(true);
 
 var app = builder.Build();
 app.UseCors(LocalDevCorsPolicy);
 app.UseWebSockets();
+
+// list all sessions
+app.MapGet("/v1/world/sessions", async (
+    IScyllaWorldPersistenceService scylla,
+    CancellationToken cancellationToken) =>
+{
+    var ids = await scylla.GetAllSessionIdsAsync(cancellationToken);
+    return Results.Ok(ids);
+});
 
 app.MapGet("/", () => Results.Ok(new
 {
@@ -259,7 +291,8 @@ var admin = app.MapGroup("/admin")
     {
         var http = context.HttpContext;
         var config = http.RequestServices.GetRequiredService<IConfiguration>();
-        var configuredKey = config["ADMIN_API_KEY"] ?? "dev-admin-key";
+        var configuredKey = config["ADMIN_API_KEY"]
+            ?? (DevCredentials.AreEnabled(config) ? "dev-admin-key" : null);
         var queryKey = http.Request.Query.TryGetValue("adminKey", out var adminKeyFromQuery)
             ? adminKeyFromQuery.ToString()
             : string.Empty;
@@ -607,8 +640,6 @@ app.MapGet("/v1/world/sessions/{sessionId}/metadata", async (
         ? Results.NotFound(new { error = "session metadata not found" })
         : Results.Ok(new { sessionId, properties = meta });
 });
-
-record SnapshotWriteRequest(string EntityType, string SnapshotJson);
 
 app.MapPost("/v1/world/sessions/{sessionId}/snapshots/{entityId}", async (
     HttpRequest req,
@@ -1021,7 +1052,8 @@ client.MapGet("/sessions/{sessionId}/world/bootstrap", (
     var scheme = http.Request.Scheme;
     var host = http.Request.Host.Value;
     var baseUrl = $"{scheme}://{host}";
-    var query = $"sessionId={Uri.EscapeDataString(sessionId)}&adminKey={Uri.EscapeDataString(config["ADMIN_API_KEY"] ?? "dev-admin-key")}";
+    var adminKey = config["ADMIN_API_KEY"] ?? (DevCredentials.AreEnabled(config) ? "dev-admin-key" : string.Empty);
+    var query = $"sessionId={Uri.EscapeDataString(sessionId)}&adminKey={Uri.EscapeDataString(adminKey)}";
 
     var response = new UnitySessionBootstrapResponse
     {
@@ -1113,6 +1145,52 @@ client.MapGet("/sessions/{sessionId}/world/current", async (
     });
 });
 
+// ── Authoritative action API ──────────────────────────────────────────────
+var actions = app.MapGroup("/v1/actions")
+    .AddEndpointFilter(ValidateClientSecurityAsync);
+
+actions.MapPost("/{sessionId}", async (
+    string sessionId,
+    AuthoritativeActionRequest request,
+    IAuthoritativeActionService service,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.ActionId))
+        return Results.BadRequest(new { error = "actionId is required" });
+
+    if (string.IsNullOrWhiteSpace(request.SessionId))
+        request.SessionId = sessionId;
+
+    if (!string.Equals(request.SessionId, sessionId, StringComparison.Ordinal))
+        return Results.BadRequest(new { error = "sessionId in body does not match the route" });
+
+    var response = await service.SubmitActionAsync(request, cancellationToken);
+    return Results.Ok(response);
+});
+
+actions.MapGet("/{sessionId}/state", async (
+    string sessionId,
+    IAuthoritativeActionService service,
+    CancellationToken cancellationToken) =>
+{
+    var state = await service.GetStateAsync(sessionId, cancellationToken);
+    return state is null
+        ? Results.NotFound(new { error = "no world available for this session" })
+        : Results.Ok(state);
+});
+
+actions.MapGet("/{sessionId}/timeline", (
+    string sessionId,
+    int? take,
+    IAuthoritativeActionService service) =>
+{
+    return Results.Ok(new AuthoritativeTimelineEnvelope
+    {
+        SessionId = sessionId,
+        Events = service.GetTimeline(sessionId, take ?? 50)
+    });
+});
+
 // ── Agent task endpoints ─────────────────────────────────────────────────
 admin.MapPost("/agent/tasks", async (
     AgentTaskSubmitRequest req,
@@ -1152,5 +1230,13 @@ admin.MapDelete("/agent/tasks/{taskId}", async (
     return Results.Ok(new { ok = true });
 });
 
+// ── GraphQL API ────────────────────────────────────────────────────────────
+// Served at /graphql and gated with the SAME client security used by the
+// /client REST group so queries/mutations require the client API key.
+app.MapGraphQL("/graphql")
+    .AddEndpointFilter(ValidateClientSecurityAsync);
+
 await app.RunAsync();
+
+record SnapshotWriteRequest(string EntityType, string SnapshotJson);
 #endif

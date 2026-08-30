@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Npgsql;
+using Authoritative.Security;
 
 namespace Authoritative.Services;
 
@@ -145,8 +146,7 @@ public sealed class AgentTaskService : IAgentTaskService, IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _connectionString = _config["POSTGRES_CONNECTION_STRING"]
-            ?? "Host=postgres;Port=5432;Username=mmouser;Password=mmopass;Database=mmodb";
+        _connectionString = PostgresConnectionString.Resolve(_config) ?? string.Empty;
         _openAiApiKey = _config["OPENAI_API_KEY"] ?? string.Empty;
         _model = _config["AGENT_MODEL"] ?? "gpt-4o";
         _workspacePath = _config["WORKSPACE_PATH"] ?? "/workspace";
@@ -228,10 +228,7 @@ public sealed class AgentTaskService : IAgentTaskService, IHostedService
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
-            @"INSERT INTO agent_tasks (id, description)
-              VALUES (@id, @desc)
-              RETURNING id, status, description, result, agent_log,
-                        created_at, updated_at, completed_at", conn);
+            PersistenceSchemaText.AgentTaskInsert, conn);
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("desc", description);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -244,8 +241,8 @@ public sealed class AgentTaskService : IAgentTaskService, IHostedService
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(ct);
         var sql = status is null
-            ? "SELECT id, status, description, result, agent_log, created_at, updated_at, completed_at FROM agent_tasks ORDER BY created_at DESC LIMIT 100"
-            : "SELECT id, status, description, result, agent_log, created_at, updated_at, completed_at FROM agent_tasks WHERE status = @s ORDER BY created_at DESC LIMIT 100";
+            ? $"SELECT {PersistenceSchemaText.AgentTaskSelect} FROM agent_tasks ORDER BY created_at DESC LIMIT 100"
+            : $"SELECT {PersistenceSchemaText.AgentTaskSelect} FROM agent_tasks WHERE status = @s ORDER BY created_at DESC LIMIT 100";
         await using var cmd = new NpgsqlCommand(sql, conn);
         if (status is not null) cmd.Parameters.AddWithValue("s", status);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -259,7 +256,7 @@ public sealed class AgentTaskService : IAgentTaskService, IHostedService
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
-            "SELECT id, status, description, result, agent_log, created_at, updated_at, completed_at FROM agent_tasks WHERE id = @id", conn);
+            $"SELECT {PersistenceSchemaText.AgentTaskSelect} FROM agent_tasks WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("id", taskId);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? MapRow(reader) : null;
@@ -300,7 +297,7 @@ Tech stack:
 - /workspace/docker-compose.yml          all Docker services
 - /workspace/ported-from-zip-unmodified/  original scaffolding (read-only reference)
 
-Database: Postgres mmodb @ postgres:5432 (user: mmouser / pass: mmopass)
+Database: Postgres mmodb @ postgres:5432 (credentialed via POSTGRES_CONNECTION_STRING)
 Redis: redis:6379
 
 Use your tools to read the codebase, make changes, and verify them.
@@ -526,19 +523,9 @@ Current time: {DateTimeOffset.UtcNow:R}
     {
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(ct);
-        await using var cmd = new NpgsqlCommand("""
-            CREATE TABLE IF NOT EXISTS agent_tasks (
-                id           TEXT        PRIMARY KEY,
-                status       TEXT        NOT NULL DEFAULT 'pending',
-                description  TEXT        NOT NULL,
-                result       TEXT,
-                agent_log    TEXT        NOT NULL DEFAULT '',
-                created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                completed_at TIMESTAMPTZ
-            );
-            CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks (status, created_at DESC);
-            """, conn);
+        await using var cmd = new NpgsqlCommand(
+            PersistenceSchemaText.AgentTasksTableDdl + ";" +
+            PersistenceSchemaText.AgentTasksIndexDdl + ";", conn);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
@@ -547,7 +534,7 @@ Current time: {DateTimeOffset.UtcNow:R}
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(ct);
         // Atomic pick-and-mark-running using FOR UPDATE SKIP LOCKED
-        await using var cmd = new NpgsqlCommand("""
+        await using var cmd = new NpgsqlCommand($"""
             UPDATE agent_tasks SET status = 'running', updated_at = NOW()
             WHERE id = (
                 SELECT id FROM agent_tasks
@@ -556,8 +543,7 @@ Current time: {DateTimeOffset.UtcNow:R}
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, status, description, result, agent_log,
-                      created_at, updated_at, completed_at
+            RETURNING {PersistenceSchemaText.AgentTaskSelect}
             """, conn);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? MapRow(reader) : null;

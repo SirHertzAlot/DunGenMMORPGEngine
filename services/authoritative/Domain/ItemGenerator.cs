@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
+using Authoritative.Services;
 
 namespace Authoritative.Domain
 {
@@ -22,7 +23,7 @@ namespace Authoritative.Domain
 
     public class ItemGenerator : IItemGenerator
     {
-        static readonly string[] ItemTypes = new[] { "sword", "shield", "potion", "bow", "staff", "armor" };
+        static readonly string[] ItemTypes = PersistenceTagCatalog.LootItemTypes;
         static readonly string[] Tiers = new[] { "common", "uncommon", "rare", "epic", "legendary" };
         static readonly string[] Components = new[] { "damage", "durability", "enchantment", "weight", "material" };
 

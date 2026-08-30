@@ -18,7 +18,8 @@ namespace Authoritative.Services
     /// so the game client can query them via the /v1/world/ endpoints.
     ///
     /// Keyspace:  mmo_world
-    /// Tables:    dungeon_sessions, dungeon_rooms, dungeon_enemies, dungeon_loot
+    /// Tables:    dungeon_sessions, dungeon_rooms, dungeon_enemies, dungeon_loot,
+    ///            entity_snapshots, session_metadata
     ///
     /// Enqueue a world with EnqueueWorld(); the background loop batches writes.
     /// </summary>
@@ -429,94 +430,52 @@ namespace Authoritative.Services
                     _session = await Task.Run(() => _cluster.Connect(), ct).ConfigureAwait(false);
 
                     // Keyspace — SimpleStrategy is fine for a single-node dev cluster.
-                    await _session.ExecuteAsync(new SimpleStatement(@"
-                        CREATE KEYSPACE IF NOT EXISTS mmo_world
-                        WITH replication = {'class':'SimpleStrategy','replication_factor':1}
-                        AND durable_writes = true"))
-                        .ConfigureAwait(false);
+                    await _session.ExecuteAsync(new SimpleStatement(
+                        PersistenceSchemaText.MmoWorldKeyspaceDdl)).ConfigureAwait(false);
 
                     await _session.ExecuteAsync(new SimpleStatement(
                         "USE mmo_world")).ConfigureAwait(false);
 
-                    await _session.ExecuteAsync(new SimpleStatement(@"
-                        CREATE TABLE IF NOT EXISTS dungeon_sessions (
-                            session_id    TEXT,
-                            execution_id  TEXT,
-                            pipeline_id   TEXT,
-                            seed          INT,
-                            width         INT,
-                            height        INT,
-                            dungeon_level INT,
-                            room_count    INT,
-                            enemy_count   INT,
-                            loot_count    INT,
-                            created_at    TIMESTAMP,
-                            PRIMARY KEY (session_id)
-                        )")).ConfigureAwait(false);
+                    // Schema is the single source of truth shared with db/scylla/mmo_world.cql.
+                    await _session.ExecuteAsync(new SimpleStatement(
+                        PersistenceSchemaText.DungeonSessionsDdl)).ConfigureAwait(false);
 
-                    await _session.ExecuteAsync(new SimpleStatement(@"
-                        CREATE TABLE IF NOT EXISTS dungeon_rooms (
-                            session_id TEXT,
-                            room_id    INT,
-                            x          INT,
-                            y          INT,
-                            width      INT,
-                            height     INT,
-                            PRIMARY KEY (session_id, room_id)
-                        )")).ConfigureAwait(false);
+                    await _session.ExecuteAsync(new SimpleStatement(
+                        PersistenceSchemaText.DungeonRoomsDdl)).ConfigureAwait(false);
 
-                    await _session.ExecuteAsync(new SimpleStatement(@"
-                        CREATE TABLE IF NOT EXISTS dungeon_enemies (
-                            session_id TEXT,
-                            enemy_id   INT,
-                            archetype  TEXT,
-                            x          INT,
-                            y          INT,
-                            level      INT,
-                            PRIMARY KEY (session_id, enemy_id)
-                        )")).ConfigureAwait(false);
+                    await _session.ExecuteAsync(new SimpleStatement(
+                        PersistenceSchemaText.DungeonEnemiesDdl)).ConfigureAwait(false);
 
-                    await _session.ExecuteAsync(new SimpleStatement(@"
-                        CREATE TABLE IF NOT EXISTS dungeon_loot (
-                            session_id TEXT,
-                            item_id    TEXT,
-                            item_type  TEXT,
-                            tier       TEXT,
-                            x          INT,
-                            y          INT,
-                            PRIMARY KEY (session_id, item_id)
-                        )")).ConfigureAwait(false);
+                    await _session.ExecuteAsync(new SimpleStatement(
+                        PersistenceSchemaText.DungeonLootDdl)).ConfigureAwait(false);
+
+                    await _session.ExecuteAsync(new SimpleStatement(
+                        PersistenceSchemaText.EntitySnapshotsDdl)).ConfigureAwait(false);
+
+                    await _session.ExecuteAsync(new SimpleStatement(
+                        PersistenceSchemaText.SessionMetadataDdl)).ConfigureAwait(false);
 
                     // Prepare statements once — avoids repeated CQL parsing per insert.
-                    _psInsertSession = await _session.PrepareAsync(@"
-                        INSERT INTO dungeon_sessions
-                            (session_id, execution_id, pipeline_id, seed, width, height,
-                             dungeon_level, room_count, enemy_count, loot_count, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").ConfigureAwait(false);
+                    _psInsertSession = await _session.PrepareAsync(
+                        PersistenceSchemaText.DungeonSessionsInsert).ConfigureAwait(false);
 
-                    _psInsertRoom = await _session.PrepareAsync(@"
-                        INSERT INTO dungeon_rooms (session_id, room_id, x, y, width, height)
-                        VALUES (?, ?, ?, ?, ?, ?)").ConfigureAwait(false);
+                    _psInsertRoom = await _session.PrepareAsync(
+                        PersistenceSchemaText.DungeonRoomsInsert).ConfigureAwait(false);
 
-                    _psInsertEnemy = await _session.PrepareAsync(@"
-                        INSERT INTO dungeon_enemies (session_id, enemy_id, archetype, x, y, level)
-                        VALUES (?, ?, ?, ?, ?, ?)").ConfigureAwait(false);
+                    _psInsertEnemy = await _session.PrepareAsync(
+                        PersistenceSchemaText.DungeonEnemiesInsert).ConfigureAwait(false);
 
-                    _psInsertLoot = await _session.PrepareAsync(@"
-                        INSERT INTO dungeon_loot (session_id, item_id, item_type, tier, x, y)
-                        VALUES (?, ?, ?, ?, ?, ?)").ConfigureAwait(false);
+                    _psInsertLoot = await _session.PrepareAsync(
+                        PersistenceSchemaText.DungeonLootInsert).ConfigureAwait(false);
 
-                    _psInsertEntitySnapshot = await _session.PrepareAsync(@"
-                        INSERT INTO entity_snapshots (session_id, entity_id, entity_type, version, state_json, last_updated)
-                        VALUES (?, ?, ?, ?, ?, ?)").ConfigureAwait(false);
+                    _psInsertEntitySnapshot = await _session.PrepareAsync(
+                        PersistenceSchemaText.EntitySnapshotsInsert).ConfigureAwait(false);
 
-                    _psInsertEntitySnapshotWithTtl = await _session.PrepareAsync(@"
-                        INSERT INTO entity_snapshots (session_id, entity_id, entity_type, version, state_json, last_updated)
-                        VALUES (?, ?, ?, ?, ?, ?) USING TTL ?").ConfigureAwait(false);
+                    _psInsertEntitySnapshotWithTtl = await _session.PrepareAsync(
+                        PersistenceSchemaText.EntitySnapshotsWithTtlInsert).ConfigureAwait(false);
 
-                    _psUpsertSessionMetadata = await _session.PrepareAsync(@"
-                        INSERT INTO session_metadata (session_id, properties, last_updated)
-                        VALUES (?, ?, ?)").ConfigureAwait(false);
+                    _psUpsertSessionMetadata = await _session.PrepareAsync(
+                        PersistenceSchemaText.SessionMetadataInsert).ConfigureAwait(false);
 
                     _schemaReady = true;
                     _log.LogInformation("ScyllaDB mmo_world schema initialized on {ContactPoint}", _contactPoint);

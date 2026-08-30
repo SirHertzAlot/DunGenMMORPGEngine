@@ -26,7 +26,7 @@ RUN apt-get update \
 					 apt-get install --only-upgrade -y "$pkg"; \
 				 fi; \
 			 done \
-		&& apt-get install -y --no-install-recommends docker.io \
+		&& apt-get install -y --no-install-recommends docker.io curl \
 		&& rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/publish ./

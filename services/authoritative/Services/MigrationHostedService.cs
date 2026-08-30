@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using Authoritative.Security;
 
 namespace Authoritative.Services
 {
@@ -29,8 +30,15 @@ namespace Authoritative.Services
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            var connStr = _config["POSTGRES_CONNECTION_STRING"]
-                          ?? "Host=postgres;Port=5432;Username=mmouser;Password=mmopass;Database=mmodb";
+            var connStr = PostgresConnectionString.Resolve(_config);
+            if (connStr == null)
+            {
+                _log.LogWarning("POSTGRES_CONNECTION_STRING is not configured and development credentials are not enabled. Skipping database migrations.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_config["POSTGRES_CONNECTION_STRING"]))
+                _log.LogWarning("POSTGRES_CONNECTION_STRING is not configured; using development database credentials for migrations.");
 
             string migrationsPath = Path.Combine(Directory.GetCurrentDirectory(), "Assets", "DunGenMMORPGEngine", "db", "migrations");
             if (!Directory.Exists(migrationsPath))

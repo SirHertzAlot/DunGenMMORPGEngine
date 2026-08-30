@@ -138,12 +138,13 @@ function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 const API_BASE = '/admin';
+const WORLD_API_BASE = '/v1';
 
 export const backendImpl: backendInterface = {
   async saveGridConfig(uuid: Uint8Array, config: { dim: bigint; cells: BackendCellConfig[][]; owner: unknown }) {
     const id = uint8ArrayToBase64(uuid);
     const payload: Record<string, string> = { gridConfig: JSON.stringify(config) };
-    const res = await fetch(`${API_BASE}/v1/world/sessions/${encodeURIComponent(id)}/metadata`, {
+    const res = await fetch(`${WORLD_API_BASE}/world/sessions/${encodeURIComponent(id)}/metadata`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -153,7 +154,7 @@ export const backendImpl: backendInterface = {
 
   async getGridConfig(uuid: Uint8Array) {
     const id = uint8ArrayToBase64(uuid);
-    const res = await fetch(`${API_BASE}/v1/world/sessions/${encodeURIComponent(id)}/metadata`);
+    const res = await fetch(`${WORLD_API_BASE}/world/sessions/${encodeURIComponent(id)}/metadata`);
     if (!res.ok) return null;
     const body = await res.json();
     const props = body?.properties;
@@ -162,13 +163,13 @@ export const backendImpl: backendInterface = {
   },
 
   async getAllGridConfigs() {
-    const res = await fetch(`${API_BASE}/v1/world/sessions`);
+    const res = await fetch(`${WORLD_API_BASE}/world/sessions`);
     if (!res.ok) return [];
     const ids: string[] = await res.json();
     const results: Array<[Uint8Array, { cells: BackendCellConfig[][] }]> = [];
     await Promise.all(ids.map(async (id) => {
       try {
-        const mres = await fetch(`${API_BASE}/v1/world/sessions/${encodeURIComponent(id)}/metadata`);
+        const mres = await fetch(`${WORLD_API_BASE}/world/sessions/${encodeURIComponent(id)}/metadata`);
         if (!mres.ok) return;
         const body = await mres.json();
         const props = body?.properties;

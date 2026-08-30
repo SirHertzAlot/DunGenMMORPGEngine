@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Authoritative.Domain;
+using Authoritative.Multiplayer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -25,7 +26,7 @@ namespace Authoritative.Services
 
     public sealed class LocalWorldGenerationAdapter : IWorldGenerationAdapter
     {
-        private static readonly string[] EnemyArchetypes = { "goblin", "skeleton", "cultist", "wolf", "bandit" };
+        private static readonly string[] EnemyArchetypes = PersistenceTagCatalog.EnemyArchetypes;
 
         private readonly IItemGenerator _itemGenerator;
         private readonly IGeneratedItemStore _itemStore;
@@ -42,7 +43,7 @@ namespace Authoritative.Services
             var definition = request.Definition;
             var execution = request.Execution;
             var ecs = definition.Ecs;
-            var random = new Random(ecs.Seed);
+            var random = new DeterministicRng((ulong)(uint)ecs.Seed);
             var sessionId = string.IsNullOrWhiteSpace(execution.SessionId) ? string.Empty : execution.SessionId.Trim();
             var terrainMesh = _terrainGenerator.Generate(new HeightmapRequest
             {

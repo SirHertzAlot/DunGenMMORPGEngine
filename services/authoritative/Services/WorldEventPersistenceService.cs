@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
+using Authoritative.Security;
 
 namespace Authoritative.Services
 {
@@ -34,7 +35,7 @@ namespace Authoritative.Services
     public sealed class WorldEventPersistenceService : BackgroundService, IWorldEventPersistenceService
     {
         private readonly Channel<WorldSessionEvent> _queue;
-        private readonly string _pgConnStr;
+        private readonly string? _pgConnStr;
         private readonly ILogger<WorldEventPersistenceService> _log;
         private volatile bool _schemaReady;
 
@@ -42,8 +43,9 @@ namespace Authoritative.Services
 
         public WorldEventPersistenceService(IConfiguration config, ILogger<WorldEventPersistenceService> log)
         {
-            _pgConnStr = config["POSTGRES_CONNECTION_STRING"]
-                ?? "Host=postgres;Port=5432;Username=mmouser;Password=mmopass;Database=mmodb";
+            _pgConnStr = PostgresConnectionString.Resolve(config);
+            if (_pgConnStr != null && string.IsNullOrWhiteSpace(config["POSTGRES_CONNECTION_STRING"]))
+                log.LogWarning("POSTGRES_CONNECTION_STRING is not configured; using development database credentials for world event persistence.");
             _log = log;
             _queue = Channel.CreateBounded<WorldSessionEvent>(new BoundedChannelOptions(10_000)
             {
@@ -127,11 +129,11 @@ namespace Authoritative.Services
                 await using var conn = new NpgsqlConnection(_pgConnStr);
                 await conn.OpenAsync(cancellationToken);
                 await using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"
+                cmd.CommandText = $@"
                     SELECT
                         COUNT(*) AS total,
-                        COUNT(*) FILTER (WHERE event_type = 'entity.state.snapshot') AS snapshots,
-                        COUNT(*) FILTER (WHERE event_type LIKE 'system.%') AS system_events,
+                        COUNT(*) FILTER (WHERE event_type = '{PersistenceTagCatalog.EntityStateSnapshotEventType}') AS snapshots,
+                        COUNT(*) FILTER (WHERE event_type LIKE '{PersistenceTagCatalog.SystemEventTypePrefix}%') AS system_events,
                         COALESCE(MAX(CAST(NULLIF(data->>'turn', '') AS INTEGER)), 0) AS max_turn,
                         MIN(timestamp_utc) AS first_ts,
                         MAX(timestamp_utc) AS last_ts
@@ -208,12 +210,7 @@ namespace Authoritative.Services
 
                 await using var cmd = conn.CreateCommand();
                 cmd.Transaction = tx;
-                cmd.CommandText = @"
-                    INSERT INTO world_session_events
-                        (event_id, session_id, event_type, category, frame, entity_id, message, data, timestamp_utc)
-                    VALUES
-                        (@eid, @sid, @etype, @cat, @frame, @entity, @msg, @data::jsonb, @ts)
-                    ON CONFLICT (event_id) DO NOTHING";
+                cmd.CommandText = PersistenceSchemaText.WorldSessionEventsInsert;
 
                 var pEid    = cmd.Parameters.Add("eid",    NpgsqlDbType.Text);
                 var pSid    = cmd.Parameters.Add("sid",    NpgsqlDbType.Text);
@@ -259,24 +256,8 @@ namespace Authoritative.Services
                     await using var conn = new NpgsqlConnection(_pgConnStr);
                     await conn.OpenAsync(ct);
                     await using var cmd = conn.CreateCommand();
-                    cmd.CommandText = @"
-                        CREATE TABLE IF NOT EXISTS world_session_events (
-                            event_id    TEXT        NOT NULL PRIMARY KEY,
-                            session_id  TEXT        NOT NULL,
-                            event_type  TEXT        NOT NULL,
-                            category    TEXT        NOT NULL DEFAULT '',
-                            frame       INTEGER     NOT NULL DEFAULT 0,
-                            entity_id   TEXT        NOT NULL DEFAULT '',
-                            message     TEXT        NOT NULL DEFAULT '',
-                            data        JSONB       NOT NULL DEFAULT '{}',
-                            timestamp_utc TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                        );
-                        CREATE INDEX IF NOT EXISTS idx_wse_session_ts
-                            ON world_session_events(session_id, timestamp_utc DESC);
-                        CREATE INDEX IF NOT EXISTS idx_wse_event_type
-                            ON world_session_events(event_type);
-                        CREATE INDEX IF NOT EXISTS idx_wse_frame
-                            ON world_session_events(session_id, frame);";
+                    cmd.CommandText = PersistenceSchemaText.WorldSessionEventsTableDdl + ";" +
+                                      PersistenceSchemaText.WorldSessionEventsIndexDdl;
                     await cmd.ExecuteNonQueryAsync(ct);
                     _schemaReady = true;
                     _log.LogInformation("world_session_events schema initialized");

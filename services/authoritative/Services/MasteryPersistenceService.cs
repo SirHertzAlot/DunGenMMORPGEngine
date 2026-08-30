@@ -168,37 +168,19 @@ namespace Authoritative.Services
 
                     _session = await Task.Run(() => _cluster.Connect(), ct).ConfigureAwait(false);
 
-                    await _session.ExecuteAsync(new SimpleStatement(@"
-                        CREATE KEYSPACE IF NOT EXISTS mmo_world
-                        WITH replication = {'class':'SimpleStrategy','replication_factor':1}
-                        AND durable_writes = true")).ConfigureAwait(false);
+                    await _session.ExecuteAsync(new SimpleStatement(
+                        PersistenceSchemaText.MmoWorldKeyspaceDdl)).ConfigureAwait(false);
 
                     await _session.ExecuteAsync(new SimpleStatement("USE mmo_world")).ConfigureAwait(false);
 
-                    await _session.ExecuteAsync(new SimpleStatement(@"
-                        CREATE TABLE IF NOT EXISTS mastery_offers (
-                            offer_id      TEXT,
-                            user_id       TEXT,
-                            item_type     TEXT,
-                            mastery_tier  TEXT,
-                            created_at    TIMESTAMP,
-                            options_json  TEXT,
-                            PRIMARY KEY (offer_id)
-                        )")).ConfigureAwait(false);
+                    await _session.ExecuteAsync(new SimpleStatement(
+                        PersistenceSchemaText.MasteryOffersDdl)).ConfigureAwait(false);
 
-                    await _session.ExecuteAsync(new SimpleStatement(@"
-                        CREATE TABLE IF NOT EXISTS mastery_unlocked (
-                            user_id      TEXT,
-                            item_type    TEXT,
-                            skill_id     TEXT,
-                            skill_json   TEXT,
-                            unlocked_at  TIMESTAMP,
-                            PRIMARY KEY ((user_id, item_type), skill_id)
-                        )")).ConfigureAwait(false);
+                    await _session.ExecuteAsync(new SimpleStatement(
+                        PersistenceSchemaText.MasteryUnlockedDdl)).ConfigureAwait(false);
 
-                    _psUpsertOffer = await _session.PrepareAsync(@"
-                        INSERT INTO mastery_offers (offer_id, user_id, item_type, mastery_tier, created_at, options_json)
-                        VALUES (?, ?, ?, ?, ?, ?)").ConfigureAwait(false);
+                    _psUpsertOffer = await _session.PrepareAsync(
+                        PersistenceSchemaText.MasteryOffersInsert).ConfigureAwait(false);
 
                     _psGetOffer = await _session.PrepareAsync(@"
                         SELECT offer_id, user_id, item_type, mastery_tier, created_at, options_json
@@ -208,9 +190,8 @@ namespace Authoritative.Services
                     _psDeleteOffer = await _session.PrepareAsync(@"
                         DELETE FROM mastery_offers WHERE offer_id = ?").ConfigureAwait(false);
 
-                    _psInsertUnlocked = await _session.PrepareAsync(@"
-                        INSERT INTO mastery_unlocked (user_id, item_type, skill_id, skill_json, unlocked_at)
-                        VALUES (?, ?, ?, ?, ?)").ConfigureAwait(false);
+                    _psInsertUnlocked = await _session.PrepareAsync(
+                        PersistenceSchemaText.MasteryUnlockedInsert).ConfigureAwait(false);
 
                     _psGetUnlocked = await _session.PrepareAsync(@"
                         SELECT skill_json FROM mastery_unlocked WHERE user_id = ? AND item_type = ?").ConfigureAwait(false);

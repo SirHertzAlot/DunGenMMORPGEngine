@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Authoritative.Security;
 
@@ -20,13 +21,28 @@ public sealed class ClientRequestSecurityService : IClientRequestSecurityService
     private static readonly TimeSpan NonceTtl = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan TokenTtl = TimeSpan.FromMinutes(30);
 
-    private readonly string _payloadPepper;
+    private readonly string? _payloadPepper;
+    private readonly ILogger<ClientRequestSecurityService>? _log;
     private readonly ConcurrentDictionary<string, ClientAuthSession> _sessions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, DateTimeOffset> _seenNonces = new(StringComparer.Ordinal);
 
-    public ClientRequestSecurityService(IConfiguration configuration)
+    public ClientRequestSecurityService(IConfiguration configuration, ILogger<ClientRequestSecurityService>? logger = null)
     {
-        _payloadPepper = configuration["CLIENT_PAYLOAD_PEPPER"] ?? "dev-client-pepper";
+        _log = logger;
+        var configuredPepper = configuration["CLIENT_PAYLOAD_PEPPER"];
+        if (!string.IsNullOrWhiteSpace(configuredPepper))
+        {
+            _payloadPepper = configuredPepper;
+        }
+        else if (DevCredentials.AreEnabled(configuration))
+        {
+            _payloadPepper = "dev-client-pepper";
+            _log?.LogWarning("CLIENT_PAYLOAD_PEPPER is not configured; using development checksum pepper.");
+        }
+        else
+        {
+            _payloadPepper = null;
+        }
     }
 
     public ClientAuthSession CreateSession(string userId)
@@ -63,6 +79,12 @@ public sealed class ClientRequestSecurityService : IClientRequestSecurityService
     public bool ValidateRequest(ClientRequestValidationInput input, out string error)
     {
         error = string.Empty;
+
+        if (_payloadPepper == null)
+        {
+            error = "missing_pepper";
+            return false;
+        }
 
         if (!ValidateToken(input.Token, out var session) || session == null)
         {

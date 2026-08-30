@@ -39,7 +39,10 @@ namespace DunGen.Networking
                 var standaloneUrl = string.IsNullOrWhiteSpace(standaloneAdminUiUrl)
                     ? "http://localhost:8083"
                     : standaloneAdminUiUrl.Trim();
-                return standaloneUrl;
+
+                var baseUrl = standaloneUrl.TrimEnd('/');
+                var query = $"sessionId={UnityEngine.Networking.UnityWebRequest.EscapeURL(sessionId)}&adminKey={UnityEngine.Networking.UnityWebRequest.EscapeURL(connectionConfig.AdminApiKey ?? string.Empty)}";
+                return $"{baseUrl}?{query}";
             }
 
             return $"{connectionConfig.AuthoritativeBaseUrl}/admin/observability/dashboard?sessionId={sessionId}&adminKey={connectionConfig.AdminApiKey}";

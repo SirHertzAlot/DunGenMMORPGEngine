@@ -68,7 +68,9 @@ namespace Authoritative.Services
 
     public sealed class MasteryService : IMasteryService
     {
-        private static readonly string[] DefaultItemTypes = { "sword", "shield", "potion", "bow", "staff", "armor", "accessory", "dagger" };
+        private static readonly string[] DefaultItemTypes = PersistenceTagCatalog.LootItemTypes
+            .Concat(PersistenceTagCatalog.MasteryExtraItemTypes)
+            .ToArray();
 
         private static readonly Dictionary<string, double> TierMultipliers = new(StringComparer.OrdinalIgnoreCase)
         {
