@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        path:
+        projectPath:
           - projects/5
         testMode:
           - playmode
@@ -41,7 +41,7 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          path: ${{ matrix.projectPath }}
+          projectPath: ${{ matrix.projectPath }} # <-- Changed from 'path' to 'projectPath'
           testMode: ${{ matrix.testMode }}
           artifactsPath: ${{ matrix.testMode }}-artifacts
           githubToken: ${{ secrets.GITHUB_TOKEN }}
