@@ -13,11 +13,13 @@ COPY ./services/admin-ui-zip/shims/RuntimeSystem.tsx /app/src/pages/RuntimeSyste
 COPY ./services/admin-ui-zip/shims/DiagnosticLogsPage.tsx /app/src/pages/DiagnosticLogsPage.tsx
 COPY ./services/admin-ui-zip/shims/AgentPage.tsx /app/src/pages/AgentPage.tsx
 COPY ./services/admin-ui-zip/shims/useInternetIdentity.tsx /app/src/hooks/useInternetIdentity.tsx
+COPY ./services/admin-ui-zip/shims/useQueries.ts /app/src/hooks/useQueries.ts
 COPY ./services/admin-ui-zip/shims/backend.ts /app/src/backend.ts
 COPY ./services/admin-ui-zip/shims/App.tsx /app/src/App.tsx
 COPY ./services/admin-ui-zip/shims/Header.tsx /app/src/components/Header.tsx
 
 RUN corepack enable \
+    && corepack prepare pnpm@9.15.0 --activate \
     && pnpm install --no-frozen-lockfile \
     && pnpm run build:skip-bindings
 

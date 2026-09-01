@@ -55,6 +55,7 @@ namespace Authoritative.Services
         public string SnapshotUrl { get; set; } = string.Empty;
         public string StreamUrl { get; set; } = string.Empty;
         public string WebSocketUrl { get; set; } = string.Empty;
+        public string LiveStreamUrl { get; set; } = string.Empty;
         public string TimelineUrl { get; set; } = string.Empty;
     }
 

@@ -23,12 +23,11 @@ export default function FileManager() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold sm:text-3xl">File Manager</h1>
-              <p className="text-sm text-muted-foreground">Manage your 3D assets (offline mode)</p>
+              <p className="text-sm text-muted-foreground">Manage your 3D assets</p>
             </div>
             <div className="flex gap-2">
               <Button
                 onClick={() => fileInputRef.current?.click()}
-                disabled
                 className="flex-1 sm:flex-none"
               >
                 <Upload className="mr-2 h-4 w-4" />
@@ -46,15 +45,12 @@ export default function FileManager() {
         </div>
       </div>
 
-      {/* Offline Mode Info */}
+      {/* Offline Mode Info - simplified */}
       <div className="border-b border-border bg-card/95 p-4">
         <div className="mx-auto max-w-7xl">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              File Manager is running in offline mode. File upload and management features require backend connection.
-            </AlertDescription>
-          </Alert>
+          <p className="text-sm text-muted-foreground">
+            Connect to backend to upload and manage files. The authenticated /admin/files endpoint is available at port 8083.
+          </p>
         </div>
       </div>
 
@@ -68,7 +64,6 @@ export default function FileManager() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
-              disabled
             />
           </div>
           <div className="flex gap-2">
@@ -95,15 +90,30 @@ export default function FileManager() {
         <div className="mx-auto max-w-7xl p-4 sm:p-6">
           <div className="flex h-64 flex-col items-center justify-center gap-2">
             <Upload className="h-12 w-12 text-muted-foreground" />
-            <p className="text-muted-foreground">
-              No files available in offline mode
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Connect to backend to upload and manage files
-            </p>
+            <p className="text-muted-foreground">Files will appear here after upload</p>
+            <p className="text-xs text-muted-foreground">Use the upload button above to add files</p>
           </div>
         </div>
       </ScrollArea>
+
+      {/* Action Buttons */}
+      <div className="border-t border-border bg-card/50 p-4 sm:p-6">
+        <div className="flex gap-3 sm:w-full sm:justify-between">
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1 sm:flex-none"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Upload Files
+          </Button>
+          <Button
+            variant="destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete All
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

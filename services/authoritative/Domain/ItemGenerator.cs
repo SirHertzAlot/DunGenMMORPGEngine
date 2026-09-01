@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Security.Cryptography;
 using Authoritative.Services;
 
+#if !UNITY_5_3_OR_NEWER
 namespace Authoritative.Domain
 {
     public class Item
@@ -74,3 +75,4 @@ namespace Authoritative.Domain
         }
     }
 }
+#endif

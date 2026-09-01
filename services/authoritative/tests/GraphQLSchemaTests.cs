@@ -3,23 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Authoritative.GraphQL;
 using Authoritative.Multiplayer;
 using Authoritative.Services;
+
+#if !UNITY_5_3_OR_NEWER
+using Authoritative.GraphQL;
 using HotChocolate;
 using HotChocolate.CostAnalysis;
 using HotChocolate.Execution;
 using HotChocolate.Types;
 using Microsoft.Extensions.DependencyInjection;
 
-#if !UNITY_5_3_OR_NEWER
-#if UNITY_5_3_OR_NEWER
-using Assert = NUnit.Framework.Assert;
-using FactAttribute = NUnit.Framework.TestAttribute;
-#else
 using Assert = Xunit.Assert;
 using FactAttribute = Xunit.FactAttribute;
-#endif
 
 namespace Authoritative.Tests
 {
@@ -73,6 +69,11 @@ namespace Authoritative.Tests
             }
 
             public void EnqueueWorld(PipelineExecutionRecord record) { }
+
+            public Task<WorldIngestOutcome> PersistWorldAsync(PipelineExecutionRecord record, CancellationToken ct)
+                => Task.FromResult(new WorldIngestOutcome { Success = true, ScyllaAvailable = true });
+
+            public bool IsAvailable() => true;
 
             public Task<WorldSessionRow?> GetSessionAsync(string sessionId, CancellationToken ct)
                 => Task.FromResult(SessionIds.Contains(sessionId)

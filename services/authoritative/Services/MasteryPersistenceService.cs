@@ -24,6 +24,8 @@ namespace Authoritative.Services
     public sealed class MasteryPersistenceService : BackgroundService, IMasteryPersistenceService
     {
         private readonly string _contactPoint;
+        private readonly string _keyspaceDdl;
+        private readonly string _localDataCenter;
         private readonly ILogger<MasteryPersistenceService> _log;
 
         private ICluster? _cluster;
@@ -39,6 +41,8 @@ namespace Authoritative.Services
         public MasteryPersistenceService(IConfiguration config, ILogger<MasteryPersistenceService> log)
         {
             _contactPoint = config["SCYLLA_CONTACT_POINT"] ?? "scylla";
+            _keyspaceDdl = PersistenceSchemaText.BuildMmoWorldKeyspaceDdl(config);
+            _localDataCenter = config["SCYLLA_LOCAL_DC"] ?? "dc1";
             _log = log;
         }
 
@@ -161,15 +165,30 @@ namespace Authoritative.Services
             {
                 try
                 {
-                    _cluster = Cluster.Builder()
-                        .AddContactPoint(_contactPoint)
+                    var clusterBuilder = Cluster.Builder();
+                    var seeds = _contactPoint.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    if (seeds.Length <= 1)
+                        clusterBuilder.AddContactPoint(_contactPoint);
+                    else
+                        clusterBuilder.AddContactPoints(seeds);
+
+                    _cluster = clusterBuilder
                         .WithPort(9042)
+                        .WithSocketOptions(new SocketOptions()
+                            .SetConnectTimeoutMillis(10_000)
+                            .SetReadTimeoutMillis(30_000))
+                        .WithLoadBalancingPolicy(new DCAwareRoundRobinPolicy(_localDataCenter))
+                        .WithQueryOptions(new QueryOptions().SetConsistencyLevel(ConsistencyLevel.LocalQuorum))
                         .Build();
+
+                    _log.LogInformation(
+                        "MasteryScylla connecting to {Seeds} (localDC={LocalDC}) attempt {Attempt}/{Max}...",
+                        _contactPoint, _localDataCenter, attempt, maxAttempts);
 
                     _session = await Task.Run(() => _cluster.Connect(), ct).ConfigureAwait(false);
 
                     await _session.ExecuteAsync(new SimpleStatement(
-                        PersistenceSchemaText.MmoWorldKeyspaceDdl)).ConfigureAwait(false);
+                        _keyspaceDdl)).ConfigureAwait(false);
 
                     await _session.ExecuteAsync(new SimpleStatement("USE mmo_world")).ConfigureAwait(false);
 

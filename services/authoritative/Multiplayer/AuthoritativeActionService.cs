@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Authoritative.Domain;
@@ -38,6 +39,7 @@ namespace Authoritative.Multiplayer
         private readonly IHeadlessGeneratorService _generators;
         private readonly IPipelineExecutionService _executor;
         private readonly IScyllaWorldPersistenceService _scylla;
+        private readonly IWorldStreamEmitter _stream;
         private readonly TimeSpan _idleTimeout;
         private readonly ILogger<AuthoritativeActionService> _logger;
 
@@ -45,12 +47,14 @@ namespace Authoritative.Multiplayer
             IHeadlessGeneratorService generators,
             IPipelineExecutionService executor,
             IScyllaWorldPersistenceService scylla,
+            IWorldStreamEmitter stream,
             IConfiguration configuration,
             ILogger<AuthoritativeActionService> logger)
         {
             _generators = generators;
             _executor = executor;
             _scylla = scylla;
+            _stream = stream;
             _logger = logger;
 
             int idleMinutes = 30;
@@ -85,7 +89,7 @@ namespace Authoritative.Multiplayer
             return response;
         }
 
-        private static async Task<AuthoritativeActionResponse> RunActionAsync(
+        private async Task<AuthoritativeActionResponse> RunActionAsync(
             SessionSlot slot,
             AuthoritativeActionRequest request,
             CancellationToken cancellationToken)
@@ -93,12 +97,21 @@ namespace Authoritative.Multiplayer
             slot.LastAccessUtc = DateTime.UtcNow;
             await Task.Yield();
 
+            var sessionId = request.SessionId;
             AuthoritativeActionResponse response;
+            AuthoritativeGameStateDto? approvedState = null;
+            bool isTurnCommit = false;
+
             lock (slot.Simulator.SyncRoot)
             {
                 if (string.Equals(request.ActionType, AuthoritativeActionTypes.Attack, StringComparison.OrdinalIgnoreCase))
                 {
                     response = slot.Simulator.ResolveTurn(request.ExpectedTurn);
+                    if (response.Accepted)
+                    {
+                        approvedState = response.State;
+                        isTurnCommit = true;
+                    }
                 }
                 else
                 {
@@ -114,10 +127,70 @@ namespace Authoritative.Multiplayer
                         GameOverReason = state.GameOverReason,
                         State = state
                     };
+                    if (outcome.Accepted)
+                        approvedState = state;
                 }
             }
 
+            // Layer-aware authoritative-approval write path: the simulator
+            // accepting/committing an action IS the approval boundary.
+            //  - Movement (approved via QueueMove) is cached hot (Redis/live stream); it
+            //    is NOT pushed to Scylla because move state is ephemeral high-I/O churn.
+            //  - A committed turn (approval via ResolveTurn) additionally pushes the
+            //    important authoritative state (player snapshot + session metadata) to
+            //    Scylla, which is the durable replay source.
+            if (approvedState != null)
+                await CommitApprovedStateAsync(sessionId, approvedState, isTurnCommit, cancellationToken).ConfigureAwait(false);
+
             return response;
+        }
+
+        private async Task CommitApprovedStateAsync(
+            string sessionId,
+            AuthoritativeGameStateDto state,
+            bool isTurnCommit,
+            CancellationToken cancellationToken)
+        {
+            var data = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["turn"] = state.Turn.ToString(),
+                ["gameOver"] = state.GameOver ? "true" : "false",
+                ["playerX"] = state.Player.X.ToString(),
+                ["playerY"] = state.Player.Y.ToString(),
+                ["playerHealth"] = state.Player.Health.ToString(),
+                ["playerAlive"] = state.PlayerAlive ? "true" : "false"
+            };
+
+            try
+            {
+                await _stream.EmitAsync(new WorldStreamMessage
+                {
+                    Type = isTurnCommit ? "system.turn_commit" : "state.moved",
+                    SessionId = sessionId,
+                    Frame = (uint)state.Turn,
+                    EntityId = "player",
+                    TimestampUtc = DateTime.UtcNow,
+                    Data = data
+                }, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Stream emit failed for approved state in session {SessionId}.", sessionId);
+            }
+
+            if (!isTurnCommit)
+                return;
+
+            try
+            {
+                var snapshotJson = JsonSerializer.Serialize(state);
+                await _scylla.InsertEntitySnapshotAsync(sessionId, "player", "player", snapshotJson, ct: cancellationToken).ConfigureAwait(false);
+                await _scylla.UpsertSessionMetadataAsync(sessionId, data, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Authoritative commit persist to Scylla failed for session {SessionId}.", sessionId);
+            }
         }
 
         public async Task<AuthoritativeGameStateDto?> GetStateAsync(string sessionId, CancellationToken cancellationToken = default)

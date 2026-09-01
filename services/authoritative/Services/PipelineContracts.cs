@@ -162,6 +162,15 @@ namespace Authoritative.Services
         public GeneratedWorldArtifact World { get; set; } = new();
     }
 
+    // Ingest payload for POST /admin/world/sessions/{sessionId}/ingest
+    public sealed class WorldIngestRequest
+    {
+        public string? ExecutionId { get; set; }
+        public string? PipelineId { get; set; }
+        public string? Notes { get; set; }
+        public GeneratedWorldArtifact World { get; set; } = new();
+    }
+
     public sealed class WorldSessionEventIngestRequest
     {
         public string EventType { get; set; } = "custom";

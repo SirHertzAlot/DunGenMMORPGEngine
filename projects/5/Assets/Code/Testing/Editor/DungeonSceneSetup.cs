@@ -112,7 +112,7 @@ namespace DunGen.Testing.Editor
         }
 
         // Test hook for validating fallback creation behavior without invoking full menu flow.
-        internal static GameObject CreateFallbackDungeonMarkerForTests()
+        public static GameObject CreateFallbackDungeonMarkerForTests()
         {
             return CreateFallbackDungeonMarker();
         }
@@ -209,7 +209,7 @@ namespace DunGen.Testing.Editor
         }
 
         // Test hook for validating starter injection behavior without invoking full menu flow.
-        internal static void EnsureSimulationStarterForTests()
+        public static void EnsureSimulationStarterForTests()
         {
             EnsureSimulationStarter();
         }

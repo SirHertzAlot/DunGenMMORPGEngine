@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using Authoritative.Domain;
 using Authoritative.Multiplayer;
 using Authoritative.Services;
@@ -12,6 +11,7 @@ using FactAttribute = NUnit.Framework.TestAttribute;
 #else
 using Assert = Xunit.Assert;
 using FactAttribute = Xunit.FactAttribute;
+using System.Text.Json;
 #endif
 
 #if !UNITY_5_3_OR_NEWER

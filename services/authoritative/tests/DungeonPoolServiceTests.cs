@@ -249,6 +249,9 @@ namespace Authoritative.Tests
         private sealed class MockScyllaService : IScyllaWorldPersistenceService
         {
             public void EnqueueWorld(PipelineExecutionRecord record) { }
+            public bool IsAvailable() => true;
+            public Task<WorldIngestOutcome> PersistWorldAsync(PipelineExecutionRecord record, CancellationToken ct)
+                => Task.FromResult(new WorldIngestOutcome { Success = true, ScyllaAvailable = true });
             public Task<WorldSessionRow?> GetSessionAsync(string sessionId, CancellationToken ct) => Task.FromResult<WorldSessionRow?>(null);
             public Task<IReadOnlyList<WorldRoomRow>> GetRoomsAsync(string sessionId, CancellationToken ct) => Task.FromResult<IReadOnlyList<WorldRoomRow>>(new List<WorldRoomRow>());
             public Task<IReadOnlyList<WorldEnemyRow>> GetEnemiesAsync(string sessionId, CancellationToken ct) => Task.FromResult<IReadOnlyList<WorldEnemyRow>>(new List<WorldEnemyRow>());

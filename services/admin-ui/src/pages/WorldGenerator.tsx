@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { createPipelineRequest, approvePipelineRequest, executeWorldViaJob } from '@/lib/api'
-import { CheckCircle2, Circle, Loader2, ChevronDown, ChevronUp, Download } from 'lucide-react'
+import { createPipelineRequest, approvePipelineRequest, executeWorldViaJob, getJobIngestion, ingestWorldSession, type GeneratorJobIngestion, type WorldIngestResult } from '@/lib/api'
+import { CheckCircle2, Circle, Loader2, ChevronDown, ChevronUp, Download, Database, XCircle, Send } from 'lucide-react'
 
 type Step = 'idle' | 'creating' | 'created' | 'approving' | 'approved' | 'executing' | 'done' | 'error'
 
@@ -37,6 +37,9 @@ export default function WorldGenerator() {
   const [result, setResult]   = useState<WorldResult | null>(null)
   const [error, setError]     = useState<string | null>(null)
   const [jsonOpen, setJsonOpen] = useState(false)
+  const [ingestion, setIngestion] = useState<GeneratorJobIngestion | null>(null)
+  const [ingestBusy, setIngestBusy] = useState(false)
+  const [ingestResult, setIngestResult] = useState<WorldIngestResult | null>(null)
 
   const set = (k: keyof typeof form, v: string | number) =>
     setForm(f => ({ ...f, [k]: typeof f[k] === 'number' ? Number(v) : v }))
@@ -46,6 +49,7 @@ export default function WorldGenerator() {
     setResult(null)
     setReqId(null)
     setSessId(null)
+    setIngestion(null)
 
     try {
       // 1. Create
@@ -69,7 +73,7 @@ export default function WorldGenerator() {
 
       // 3. Execute
       setStep('executing')
-      const execution = await executeWorldViaJob({
+      const { jobId, execution } = await executeWorldViaJob({
         sessionId: sid,
         notes: `World generator request ${rid}`,
       })
@@ -88,6 +92,17 @@ export default function WorldGenerator() {
         status:       execution.status,
         raw:          execution,
       })
+
+      // 4. Confirm the world was ingested into ScyllaDB (persistence is async,
+      //    so poll briefly until it lands or we run out of patience).
+      for (let attempt = 0; attempt < 15; attempt++) {
+        const check = await getJobIngestion(jobId)
+        setIngestion(check)
+        if (check.worldPersisted) break
+        if (!check.scyllaAvailable) break
+        await new Promise(r => setTimeout(r, 300))
+      }
+
       setStep('done')
     } catch (e) {
       setError(String(e))
@@ -101,6 +116,28 @@ export default function WorldGenerator() {
     const a    = document.createElement('a')
     a.href = url; a.download = `world-${result?.executionId ?? Date.now()}.json`
     a.click(); URL.revokeObjectURL(url)
+  }
+
+  const ingestToAuthority = async () => {
+    const raw = result?.raw as Record<string, unknown> | undefined
+    const world = raw?.world as Record<string, unknown> | undefined
+    const sid = result?.sessionId
+    if (!sid || !world) { setError('No generated world payload available to ingest.'); return }
+    setIngestBusy(true); setError(null); setIngestResult(null)
+    try {
+      const res = await ingestWorldSession(sid, {
+        executionId: result?.executionId,
+        pipelineId: 'world-pipeline',
+        notes: 'Ingested from World Generator (admin-ui)',
+        world: world as never,
+      })
+      setIngestResult(res)
+      setStep('done')
+    } catch (e) {
+      setError(`Ingest failed: ${String(e)}`)
+    } finally {
+      setIngestBusy(false)
+    }
   }
 
   const steps: { id: Step; label: string }[] = [
@@ -239,7 +276,54 @@ export default function WorldGenerator() {
                     </div>
                   ))}
                 </div>
+
+                {/* Ingestion confirmation */}
+                {ingestion && (
+                  <div className={`rounded-md border p-3 flex items-start gap-3 ${
+                    ingestion.worldPersisted
+                      ? 'bg-emerald-500/10 border-emerald-500/30'
+                      : ingestion.scyllaAvailable
+                        ? 'bg-amber-500/10 border-amber-500/30'
+                        : 'bg-destructive/10 border-destructive/30'
+                  }`}>
+                    {ingestion.worldPersisted
+                      ? <Database className="h-4 w-4 mt-0.5 shrink-0 text-emerald-400" />
+                      : <XCircle className="h-4 w-4 mt-0.5 shrink-0 text-destructive" />}
+                    <div className="text-xs">
+                      {ingestion.worldPersisted ? (
+                        <p className="font-medium text-emerald-400">
+                          Ingested to ScyllaDB ✓ — session {ingestion.sessionId}
+                        </p>
+                      ) : ingestion.scyllaAvailable ? (
+                        <p className="font-medium text-amber-400">
+                          Not visible in ScyllaDB yet — still queued or pending. Check back shortly.
+                        </p>
+                      ) : (
+                        <p className="font-medium text-destructive">
+                          ScyllaDB unavailable — Scylla is not connected/schema not ready. World was saved to the artifact only.
+                        </p>
+                      )}
+                      <p className="text-muted-foreground mt-1 font-mono">
+                        exec {ingestion.executionId} · rooms {ingestion.rooms ?? '—'} · enemies {ingestion.enemies ?? '—'} · loot {ingestion.loot ?? '—'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <Separator />
+
+                {ingestResult && (
+                  <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 flex items-start gap-3">
+                    <Database className="h-4 w-4 mt-0.5 shrink-0 text-emerald-400" />
+                    <div className="text-xs">
+                      <p className="font-medium text-emerald-400">Ingested to authoritative world ✓</p>
+                      <p className="text-muted-foreground mt-1 font-mono">
+                        session {ingestResult.sessionId} · exec {ingestResult.executionId} · rooms {ingestResult.rooms} · enemies {ingestResult.enemies} · loot {ingestResult.loot}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <button
                     onClick={() => setJsonOpen(v => !v)}
@@ -248,9 +332,15 @@ export default function WorldGenerator() {
                     {jsonOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                     Raw JSON
                   </button>
-                  <Button size="sm" variant="outline" onClick={downloadJson}>
-                    <Download className="h-3.5 w-3.5 mr-1.5" /> Export
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={ingestToAuthority} disabled={ingestBusy}>
+                      {ingestBusy ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
+                      Ingest to Authority
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={downloadJson}>
+                      <Download className="h-3.5 w-3.5 mr-1.5" /> Export
+                    </Button>
+                  </div>
                 </div>
                 {jsonOpen && (
                   <ScrollArea className="h-64 rounded-md border border-border">

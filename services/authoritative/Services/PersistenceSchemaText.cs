@@ -1,4 +1,9 @@
 #if !UNITY_5_3_OR_NEWER
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Extensions.Configuration;
+
 namespace Authoritative.Services
 {
     /// <summary>
@@ -11,10 +16,52 @@ namespace Authoritative.Services
     {
         // ── Scylla/Cassandra: keyspace mmo_world ──────────────────────────────
 
-        public const string MmoWorldKeyspaceDdl = @"
+        /// <summary>
+        /// Build the mmo_world keyspace DDL with a regionalized
+        /// NetworkTopologyStrategy replication map.
+        ///
+        /// Replication is configured via a per-datacenter spec:
+        ///   SCYLLA_REPLICATION="us-east:3,eu-west:3"
+        /// If unset, falls back to a single datacenter (SCYLLA_LOCAL_DC, default
+        /// "dc1") with SCYLLA_REPLICATION_FACTOR (default 1, which is required
+        /// for a single-node dev cluster with NetworkTopologyStrategy).
+        /// </summary>
+        public static string BuildMmoWorldKeyspaceDdl(IConfiguration config)
+        {
+            var entries = new List<string>();
+
+            var spec = config["SCYLLA_REPLICATION"];
+            if (!string.IsNullOrWhiteSpace(spec))
+            {
+                foreach (var part in spec.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var kv = part.Split(':', 2);
+                    if (kv.Length != 2)
+                        continue;
+                    var dc = kv[0].Trim();
+                    if (string.IsNullOrWhiteSpace(dc))
+                        continue;
+                    if (int.TryParse(kv[1].Trim(), out var rf))
+                        entries.Add($"'{dc}':{Math.Max(1, rf)}");
+                }
+            }
+
+            if (entries.Count == 0)
+            {
+                var localDc = !string.IsNullOrWhiteSpace(config["SCYLLA_LOCAL_DC"])
+                    ? config["SCYLLA_LOCAL_DC"]!
+                    : "dc1";
+                var rf = int.TryParse(config["SCYLLA_REPLICATION_FACTOR"], out var r) ? Math.Max(1, r) : 1;
+                entries.Add($"'{localDc}':{rf}");
+            }
+
+            var replication = string.Join(",", entries);
+            return $@"
             CREATE KEYSPACE IF NOT EXISTS mmo_world
-            WITH replication = {'class':'SimpleStrategy','replication_factor':1}
+            WITH replication = {{'class':'NetworkTopologyStrategy',{replication}}}
             AND durable_writes = true";
+        }
+
 
         public const string DungeonSessionsDdl = @"
             CREATE TABLE IF NOT EXISTS dungeon_sessions (

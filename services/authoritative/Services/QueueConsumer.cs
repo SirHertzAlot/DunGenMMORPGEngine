@@ -60,6 +60,7 @@ namespace Authoritative.Services
         readonly IGeneratedItemStore _itemStore;
     #if !UNITY_5_3_OR_NEWER
         readonly IAdminObservabilityService? _observability;
+        readonly IWorldStreamEmitter? _stream;
     #endif
 
 #if UNITY_5_3_OR_NEWER
@@ -77,7 +78,7 @@ namespace Authoritative.Services
             ILogger<QueueConsumer> log,
             Authoritative.Domain.IItemGenerator generator,
             IGeneratedItemStore itemStore)
-            : this(log, generator, itemStore, null)
+            : this(log, generator, itemStore, null, null)
         {
         }
 
@@ -86,11 +87,22 @@ namespace Authoritative.Services
             Authoritative.Domain.IItemGenerator generator,
             IGeneratedItemStore itemStore,
             IAdminObservabilityService? observability)
+            : this(log, generator, itemStore, observability, null)
+        {
+        }
+
+        public QueueConsumer(
+            ILogger<QueueConsumer> log,
+            Authoritative.Domain.IItemGenerator generator,
+            IGeneratedItemStore itemStore,
+            IAdminObservabilityService? observability,
+            IWorldStreamEmitter? stream)
         {
             _log = log;
             _generator = generator;
             _itemStore = itemStore;
             _observability = observability;
+            _stream = stream;
         }
 #endif
 
@@ -270,10 +282,6 @@ namespace Authoritative.Services
 
         void EmitWorldEventFromAction(ActionMessage action, string stage)
         {
-#if !UNITY_5_3_OR_NEWER
-            if (_observability == null)
-                return;
-
             var payload = action.Payload;
             if (payload == null || !payload.TryGetValue("sessionId", out var sessionId) || string.IsNullOrWhiteSpace(sessionId))
                 return;
@@ -285,6 +293,24 @@ namespace Authoritative.Services
             }
 
             payload.TryGetValue("entityId", out var entityId);
+
+#if !UNITY_5_3_OR_NEWER
+            _stream?.EmitAsync(new WorldStreamMessage
+            {
+                Type = $"action.{stage}",
+                SessionId = sessionId,
+                Frame = frame,
+                EntityId = entityId ?? string.Empty,
+                Data = new Dictionary<string, string>(payload, StringComparer.Ordinal)
+                {
+                    ["actionType"] = action.Type,
+                    ["stage"] = stage
+                }
+            });
+
+            if (_observability == null)
+                return;
+
             payload.TryGetValue("message", out var message);
 
             _observability.RecordWorldEvent(new WorldSessionEvent

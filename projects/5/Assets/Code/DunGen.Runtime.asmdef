@@ -1,0 +1,21 @@
+{
+  "name": "DunGen.Runtime",
+  "rootNamespace": "",
+  "references": [
+    "Unity.Burst",
+    "Unity.Collections",
+    "Unity.Entities",
+    "Unity.InputSystem",
+    "Unity.Mathematics",
+    "Unity.Transforms"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

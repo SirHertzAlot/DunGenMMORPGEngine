@@ -1,6 +1,10 @@
 -- Scylla/Cassandra CQL for mmo_world keyspace and tables
+-- Regionalized NetworkTopologyStrategy. For a multi-datacenter deployment,
+-- add each region as '<dc_name>':'<replication_factor>', e.g.:
+--   {'class':'NetworkTopologyStrategy','us-east':3,'eu-west':3}
+-- The runtime also builds this from SCYLLA_REPLICATION in PersistenceSchemaText.
 CREATE KEYSPACE IF NOT EXISTS mmo_world
-WITH replication = {'class':'SimpleStrategy','replication_factor':1}
+WITH replication = {'class':'NetworkTopologyStrategy','dc1':1}
 AND durable_writes = true;
 
 USE mmo_world;

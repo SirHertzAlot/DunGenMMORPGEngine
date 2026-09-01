@@ -1,18 +1,68 @@
 services:
-  scylla:
+  # ── Multi-DC Scylla cluster (NetworkTopologyStrategy) ──────────────────────
+  # One host, 4 nodes across two logical DCs so DC-aware sharding
+  # (DCAwareRoundRobinPolicy + SCYLLA_LOCAL_DC + LocalQuorum) can be exercised.
+  scylla-us-1:
     image: scylladb/scylla:5.1
-    container_name: scylla
-    command: ["--smp", "1", "--memory", "1G"]
+    container_name: scylla-us-1
+    command: ["--cluster-name", "mmo-cluster", "--seeds", "scylla-us-1,scylla-eu-1", "--endpoint-snitch", "GossipingPropertyFileSnitch", "--smp", "1", "--memory", "1G"]
     ports:
       - "9042:9042"
     volumes:
-      - scylla-data:/var/lib/scylla
+      - scylla-us-1-data:/var/lib/scylla
+      - ./config/scylla/cassandra-rackdc-us.properties:/etc/scylla/cassandra-rackdc.properties:ro
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/9042'"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/$(hostname -i)/9042'"]
       start_period: 60s
       interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 10
+    networks:
+      - default
+
+  scylla-us-2:
+    image: scylladb/scylla:5.1
+    container_name: scylla-us-2
+    command: ["--cluster-name", "mmo-cluster", "--seeds", "scylla-us-1,scylla-eu-1", "--endpoint-snitch", "GossipingPropertyFileSnitch", "--smp", "1", "--memory", "1G"]
+    volumes:
+      - scylla-us-2-data:/var/lib/scylla
+      - ./config/scylla/cassandra-rackdc-us.properties:/etc/scylla/cassandra-rackdc.properties:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/$(hostname -i)/9042'"]
+      start_period: 60s
+      interval: 30s
+      timeout: 5s
+      retries: 10
+
+  scylla-eu-1:
+    image: scylladb/scylla:5.1
+    container_name: scylla-eu-1
+    command: ["--cluster-name", "mmo-cluster", "--seeds", "scylla-us-1,scylla-eu-1", "--endpoint-snitch", "GossipingPropertyFileSnitch", "--smp", "1", "--memory", "1G"]
+    ports:
+      - "9043:9042"
+    volumes:
+      - scylla-eu-1-data:/var/lib/scylla
+      - ./config/scylla/cassandra-rackdc-eu.properties:/etc/scylla/cassandra-rackdc.properties:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/$(hostname -i)/9042'"]
+      start_period: 60s
+      interval: 30s
+      timeout: 5s
+      retries: 10
+
+  scylla-eu-2:
+    image: scylladb/scylla:5.1
+    container_name: scylla-eu-2
+    command: ["--cluster-name", "mmo-cluster", "--seeds", "scylla-us-1,scylla-eu-1", "--endpoint-snitch", "GossipingPropertyFileSnitch", "--smp", "1", "--memory", "1G"]
+    volumes:
+      - scylla-eu-2-data:/var/lib/scylla
+      - ./config/scylla/cassandra-rackdc-eu.properties:/etc/scylla/cassandra-rackdc.properties:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/$(hostname -i)/9042'"]
+      start_period: 60s
+      interval: 30s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7
@@ -21,6 +71,35 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      start_period: 5s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Per-region Redis sidecars (sidecar + regional hot cache) ──────────────
+  redis-us:
+    image: redis:7
+    container_name: redis-us
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-us-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      start_period: 5s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-eu:
+    image: redis:7
+    container_name: redis-eu
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis-eu-data:/data
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       start_period: 5s
@@ -72,8 +151,8 @@ services:
       - postgres-exporter
       - rabbitmq-exporter
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO - http://localhost:9090/-/healthy >/dev/null 2>&1 || exit 1"]
-      start_period: 15s
+      test: ["CMD-SHELL", "wget -qO - http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      start_period: 10s
       interval: 15s
       timeout: 5s
       retries: 5
@@ -159,6 +238,10 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - AGENT_MODEL=${AGENT_MODEL:-gpt-4o}
       - WORKSPACE_PATH=/workspace
+      - SCYLLA_CONTACT_POINT=scylla-us-1,scylla-eu-1
+      - SCYLLA_LOCAL_DC=us-east-1
+      - SCYLLA_REPLICATION=us-east-1:2,eu-west-1:2
+      - REDIS_HOST=redis-us:6379
     volumes:
       - .:/workspace
       - /var/run/docker.sock:/var/run/docker.sock
@@ -166,7 +249,7 @@ services:
       - "8081:80"
       - "9464:9464"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:80/healthz >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/80'"]
       start_period: 30s
       interval: 30s
       timeout: 10s
@@ -188,30 +271,18 @@ services:
       - ADMIN_API_KEY=dev-admin-key
       - ASPNETCORE_URLS=http://+:80
       - EXTERNAL_GENERATOR_BASE_URL=http://generator-service:3000
+      - SCYLLA_CONTACT_POINT=scylla-us-1,scylla-eu-1
+      - SCYLLA_LOCAL_DC=eu-west-1
+      - SCYLLA_REPLICATION=us-east-1:2,eu-west-1:2
+      - REDIS_HOST=redis-eu:6379
     ports:
       - "8082:80"
       - "9465:9464"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:80/healthz >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/80'"]
       start_period: 30s
       interval: 30s
       timeout: 10s
-      retries: 5
-
-  admin-ui:
-    build:
-      context: ./services/admin-ui
-    container_name: admin-ui
-    restart: unless-stopped
-    depends_on:
-      - authoritative-primary
-    ports:
-      - "8080:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO - http://localhost/ >/dev/null 2>&1 || exit 1"]
-      start_period: 10s
-      interval: 15s
-      timeout: 5s
       retries: 5
 
   admin-ui-zip:
@@ -225,7 +296,7 @@ services:
     ports:
       - "8083:80"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO - http://localhost/ >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO - http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
       start_period: 10s
       interval: 15s
       timeout: 5s
@@ -284,8 +355,13 @@ services:
       retries: 5
 
 volumes:
-  scylla-data:
+  scylla-us-1-data:
+  scylla-us-2-data:
+  scylla-eu-1-data:
+  scylla-eu-2-data:
   redis-data:
+  redis-us-data:
+  redis-eu-data:
   pgdata:
   unity-headless-data:
   prometheus-data:

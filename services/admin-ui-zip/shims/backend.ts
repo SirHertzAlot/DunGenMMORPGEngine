@@ -104,6 +104,9 @@ export type backendInterface = {
     isDirectory: boolean,
     archiveType: ArchiveType | null
   ) => Promise<void>;
+  deleteFile: (id: Uint8Array) => Promise<void>;
+  getCallerUserProfile: () => Promise<unknown>;
+  saveCallerUserProfile: (profile: { name: string }) => Promise<void>;
 };
 
 export class ExternalBlob {
@@ -137,58 +140,115 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-const API_BASE = '/admin';
-const WORLD_API_BASE = '/v1';
+function textToUint8Array(text: string): Uint8Array {
+  return new TextEncoder().encode(text);
+}
+
+function configKey(base64Id: string): string {
+  // Grid ids are opaque strings; the backend keys them exactly. Base64 from a
+  // byte array is URL-safe enough for a path segment when quoted/encoded.
+  return encodeURIComponent(base64Id);
+}
+
+// The backend stores the grid config as an opaque JSON object that has a `cells`
+// field. All REST calls ride the authenticated /admin group, so the browser never
+// needs to present the admin key; nginx injects X-Admin-Key for /admin/.
+const ADMIN_BASE = '/admin';
 
 export const backendImpl: backendInterface = {
   async saveGridConfig(uuid: Uint8Array, config: { dim: bigint; cells: BackendCellConfig[][]; owner: unknown }) {
     const id = uint8ArrayToBase64(uuid);
-    const payload: Record<string, string> = { gridConfig: JSON.stringify(config) };
-    const res = await fetch(`${WORLD_API_BASE}/world/sessions/${encodeURIComponent(id)}/metadata`, {
+    const res = await fetch(`${ADMIN_BASE}/grid-configs/${configKey(id)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ gridConfig: config })
     });
     if (!res.ok) throw new Error(`saveGridConfig failed: ${res.status}`);
   },
 
   async getGridConfig(uuid: Uint8Array) {
     const id = uint8ArrayToBase64(uuid);
-    const res = await fetch(`${WORLD_API_BASE}/world/sessions/${encodeURIComponent(id)}/metadata`);
-    if (!res.ok) return null;
+    const res = await fetch(`${ADMIN_BASE}/grid-configs/${configKey(id)}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`getGridConfig failed: ${res.status}`);
     const body = await res.json();
-    const props = body?.properties;
-    if (!props || !props.gridConfig) return null;
-    return { cells: JSON.parse(props.gridConfig) };
+    const config = body?.gridConfig;
+    if (!config || !config.cells) return null;
+    return { cells: config.cells as BackendCellConfig[][] };
   },
 
   async getAllGridConfigs() {
-    const res = await fetch(`${WORLD_API_BASE}/world/sessions`);
-    if (!res.ok) return [];
-    const ids: string[] = await res.json();
+    const res = await fetch(`${ADMIN_BASE}/grid-configs`);
+    if (!res.ok) throw new Error(`getAllGridConfigs failed: ${res.status}`);
+    const body = await res.json();
+    const ids: Array<{ gridId: string }> = body?.configs ?? [];
     const results: Array<[Uint8Array, { cells: BackendCellConfig[][] }]> = [];
-    await Promise.all(ids.map(async (id) => {
+    await Promise.all(ids.map(async (entry) => {
       try {
-        const mres = await fetch(`${WORLD_API_BASE}/world/sessions/${encodeURIComponent(id)}/metadata`);
+        const mres = await fetch(`${ADMIN_BASE}/grid-configs/${configKey(entry.gridId)}`);
         if (!mres.ok) return;
-        const body = await mres.json();
-        const props = body?.properties;
-        if (props?.gridConfig) {
-          const config = JSON.parse(props.gridConfig) as { cells: BackendCellConfig[][] };
-          results.push([base64ToUint8Array(id), { cells: config.cells }]);
+        const mbody = await mres.json();
+        const config = mbody?.gridConfig;
+        if (config?.cells) {
+          results.push([base64ToUint8Array(entry.gridId), { cells: config.cells as BackendCellConfig[][] }]);
         }
-      } catch { /* ignore per-session errors */ }
+      } catch { /* ignore per-grid errors */ }
     }));
     return results;
   },
 
   async getFiles() {
-    // No file backend implemented — return empty list for now.
-    return [];
+    const res = await fetch(`${ADMIN_BASE}/files`);
+    if (!res.ok) throw new Error(`getFiles failed: ${res.status}`);
+    const body = await res.json();
+    const files: FileMetadata[] = (body?.files ?? []).map((f: any) => ({
+      id: base64ToUint8Array(f.id),
+      name: f.name,
+      size: BigInt(f.size ?? 0),
+      fileType: (f.fileType ?? 'GLB') as FileType,
+      uploadedAt: BigInt(f.uploadedAtUnixMs ?? 0),
+      relativePath: f.relativePath ?? '',
+      isDirectory: !!f.isDirectory,
+      archiveType: (f.archiveType ?? null) as ArchiveType | null,
+    }));
+    return files;
   },
 
   async saveFile(id, blob, name, size, fileType, uploadedAt, extractionSource, relativePath, isDirectory, archiveType) {
-    // No server-side file store implemented in this shim. No-op.
+    const idB64 = uint8ArrayToBase64(id);
+    const payload = {
+      id: idB64,
+      name,
+      size: Number(size),
+      fileType,
+      uploadedAtUnixMs: Number(uploadedAt),
+      relativePath: relativePath ?? '',
+      isDirectory: !!isDirectory,
+      archiveType: archiveType ?? null,
+      extractionSourceId: extractionSource ? uint8ArrayToBase64(extractionSource) : null,
+      dataBase64: uint8ArrayToBase64(blob.toBytes()),
+    };
+    const res = await fetch(`${ADMIN_BASE}/files`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`saveFile failed: ${res.status}`);
+  },
+
+  async deleteFile(id: Uint8Array) {
+    const idB64 = uint8ArrayToBase64(id);
+    const res = await fetch(`${ADMIN_BASE}/files/${configKey(idB64)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`deleteFile failed: ${res.status}`);
+  },
+
+  async getCallerUserProfile() {
+    // No profile backend exists; return null (matches offline behavior shape).
+    return null;
+  },
+
+  async saveCallerUserProfile() {
+    // No profile backend exists; no-op.
     return;
   }
 };

@@ -53,7 +53,7 @@ export const createGeneratorJob = (body: object) =>
     method: 'POST', headers: adminHeaders, body: JSON.stringify(body),
   })
 
-export async function executeWorldViaJob(body: WorldGeneratorJobRequest): Promise<PipelineExecutionRecord> {
+export async function executeWorldViaJob(body: WorldGeneratorJobRequest): Promise<{ jobId: string; execution: PipelineExecutionRecord }> {
   const job = await createGeneratorJob({
     generatorId: 'world-pipeline',
     requestedBy: 'admin-ui',
@@ -67,8 +67,16 @@ export async function executeWorldViaJob(body: WorldGeneratorJobRequest): Promis
   if (!job.execution)
     throw new Error('World job completed without an execution payload.')
 
-  return asRecord(job.execution) as unknown as PipelineExecutionRecord
+  return {
+    jobId: job.jobId,
+    execution: asRecord(job.execution) as unknown as PipelineExecutionRecord,
+  }
 }
+
+export const getJobIngestion = (jobId: string) =>
+  request<GeneratorJobIngestion>(`${BASE}/admin/generators/jobs/${encodeURIComponent(jobId)}/ingestion`, {
+    headers: adminHeaders,
+  })
 
 export async function generateCharactersViaJob(body: CharacterGeneratorJobRequest): Promise<GeneratedCharacter[]> {
   const job = await createGeneratorJob({
@@ -106,6 +114,120 @@ export async function generateTerrainMeshViaJob(body: HeightmapGeneratorJobReque
 
   return asRecord(job.result) as unknown as GeneratedTerrainMesh
 }
+
+// ── World explorer / ingestion ───────────────────────────────────────────────
+export const getAdminWorldSessions = () =>
+  request<{ count: number; sessions: WorldSessionSummary[] }>(
+    `${BASE}/admin/world/sessions`,
+    { headers: adminHeaders },
+  )
+
+export const getAdminWorldSession = (sessionId: string) =>
+  request<WorldSessionDetail>(
+    `${BASE}/admin/world/sessions/${encodeURIComponent(sessionId)}`,
+    { headers: adminHeaders },
+  )
+
+export const ingestWorldSession = (sessionId: string, body: WorldIngestRequest) =>
+  request<WorldIngestResult>(`${BASE}/admin/world/sessions/${encodeURIComponent(sessionId)}/ingest`, {
+    method: 'POST',
+    headers: adminHeaders,
+    body: JSON.stringify(body),
+  })
+
+// ── Live world monitor ───────────────────────────────────────────────────────
+export const getSessionTimeline = (sessionId: string, take = 200) =>
+  request<SessionTimelineEntry[]>(
+    `${BASE}/admin/observability/sessions/${encodeURIComponent(sessionId)}/timeline?take=${take}`,
+    { headers: adminHeaders },
+  )
+
+export const getSessionEventHistory = (sessionId: string, take = 200) =>
+  request<SessionEventHistoryEntry[]>(
+    `${BASE}/admin/observability/sessions/${encodeURIComponent(sessionId)}/events/history?take=${take}`,
+    { headers: adminHeaders },
+  )
+
+export const getSessionEventsSummary = (sessionId: string) =>
+  request<Record<string, unknown>>(
+    `${BASE}/admin/observability/sessions/${encodeURIComponent(sessionId)}/events/summary`,
+    { headers: adminHeaders },
+  )
+
+// SSE heartbeat endpoint for the live monitor (EventSource target).
+// NOTE: EventSource cannot set headers, so the admin key travels as a query param.
+export const getObservabilityStreamUrl = (sessionId?: string) => {
+  const params = new URLSearchParams()
+  if (sessionId) params.set('sessionId', sessionId)
+  params.set('adminKey', ADMIN_KEY)
+  const qs = params.toString()
+  return `${BASE}/admin/observability/stream?${qs}`
+}
+
+// ── Pool & runtime ───────────────────────────────────────────────────────────
+export const getDungeonPoolStatus = () =>
+  request<unknown>(`${BASE}/v1/pool/status`, { headers: adminHeaders })
+
+export const claimDungeon = (difficultyLevel: number) =>
+  request<unknown>(
+    `${BASE}/v1/pool/claim?difficultyLevel=${difficultyLevel}`,
+    { method: 'POST', headers: adminHeaders },
+  )
+
+export const generatePoolBatch = (difficultyLevel: number, count: number) =>
+  request<{ message: string; stats: unknown }>(
+    `${BASE}/admin/pool/generate-batch?difficultyLevel=${difficultyLevel}&count=${count}`,
+    { method: 'POST', headers: adminHeaders },
+  )
+
+export const setPoolConfig = (generationRatio: number) =>
+  request<{ message: string; stats: unknown }>(
+    `${BASE}/admin/pool/config?generationRatio=${generationRatio}`,
+    { method: 'POST', headers: adminHeaders },
+  )
+
+export const getPipelineRequests = () =>
+  request<PipelineRequest[]>(`${BASE}/admin/pipeline/requests`, { headers: adminHeaders })
+
+export const rejectPipelineRequest = (id: string, reason: string) =>
+  request<unknown>(`${BASE}/admin/pipeline/requests/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    headers: adminHeaders,
+    body: JSON.stringify({ reason, rejectedBy: 'admin-ui' }),
+  })
+
+export const getPipelineExecutions = (take = 25) =>
+  request<PipelineExecutionRecord[]>(
+    `${BASE}/admin/pipeline/runtime/executions?take=${take}`,
+    { headers: adminHeaders },
+  )
+
+export const reloadPipelineRuntime = () =>
+  request<unknown>(`${BASE}/admin/pipeline/runtime/reload`, {
+    method: 'POST',
+    headers: adminHeaders,
+  })
+
+export const executePipeline = (body: object) =>
+  request<unknown>(`${BASE}/admin/pipeline/runtime/execute`, {
+    method: 'POST',
+    headers: adminHeaders,
+    body: JSON.stringify(body),
+  })
+
+// ── Agent tasks ──────────────────────────────────────────────────────────────
+export const getAgentTasks = (status?: string) =>
+  request<AgentTask[]>(
+    `${BASE}/admin/agent/tasks${status ? `?status=${encodeURIComponent(status)}` : ''}`,
+    { headers: adminHeaders },
+  )
+
+export const submitAgentTask = (description: string) =>
+  request<AgentTask>(`${BASE}/admin/agent/tasks`, {
+    method: 'POST',
+    headers: adminHeaders,
+    body: JSON.stringify({ description }),
+  })
 
 // ── Observability ─────────────────────────────────────────────────────────────
 export const getSnapshot = () =>
@@ -293,6 +415,20 @@ export interface GeneratorJobRecord {
   parameters: Record<string, string>
 }
 
+export interface GeneratorJobIngestion {
+  jobId: string
+  generatorId?: string
+  executionId?: string
+  sessionId?: string
+  worldPersisted: boolean
+  rooms?: number
+  enemies?: number
+  loot?: number
+  scyllaAvailable: boolean
+  checkedAtUtc: string
+  message?: string
+}
+
 export interface CharacterGeneratorJobRequest {
   level: number
   class?: string
@@ -317,4 +453,109 @@ export interface WorldGeneratorJobRequest {
   constraintsYaml?: string
   seed?: number
   parameters?: Record<string, string>
+}
+
+// ── World explorer / ingestion types ─────────────────────────────────────────
+export interface WorldSessionSummary {
+  sessionId: string
+  executionId: string
+  pipelineId: string
+  seed: number
+  width: number
+  height: number
+  dungeonLevel: number
+  roomCount: number
+  enemyCount: number
+  lootCount: number
+  persistedAtUtc: string
+}
+
+export interface WorldSessionRow {
+  sessionId: string
+  executionId: string
+  pipelineId: string
+  seed: number
+  width: number
+  height: number
+  dungeonLevel: number
+  roomCount: number
+  enemyCount: number
+  lootCount: number
+  createdAt: string
+}
+
+export interface WorldRoomRow {
+  roomId: number; x: number; y: number; width: number; height: number
+}
+
+export interface WorldEnemyRow {
+  enemyId: number; archetype: string; x: number; y: number; level: number
+}
+
+export interface WorldLootRow {
+  itemId: string; itemType: string; tier: string; x: number; y: number
+}
+
+export interface WorldSessionDetail {
+  session: WorldSessionRow
+  rooms: WorldRoomRow[]
+  enemies: WorldEnemyRow[]
+  loot: WorldLootRow[]
+  metadata?: Record<string, string> | null
+}
+
+export interface WorldIngestRequest {
+  executionId?: string
+  pipelineId?: string
+  notes?: string
+  world: GeneratedWorldArtifact
+}
+
+export interface WorldIngestResult {
+  success: boolean
+  sessionId: string
+  executionId: string
+  rooms: number
+  enemies: number
+  loot: number
+}
+
+// ── Live world monitor types ────────────────────────────────────────────────
+export interface SessionTimelineEntry {
+  frame?: number
+  type?: string
+  timestampUtc?: string
+  entityId?: string
+  data?: unknown
+  [key: string]: unknown
+}
+
+export interface SessionEventHistoryEntry {
+  eventId: string
+  eventType: string
+  category: string
+  frame: number
+  entityId: string
+  message: string
+  timestampUtc: string
+  data: Record<string, string>
+}
+
+// ── Pool & runtime types ─────────────────────────────────────────────────────
+export interface PipelineRequest {
+  requestId: string
+  pipelineName: string
+  submittedBy?: string
+  status: string
+  submittedAtUtc?: string
+  [key: string]: unknown
+}
+
+export interface AgentTask {
+  id: string
+  description: string
+  status: string
+  createdAtUtc?: string
+  completedAtUtc?: string
+  [key: string]: unknown
 }

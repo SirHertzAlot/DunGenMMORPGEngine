@@ -14,8 +14,11 @@ using Authoritative.GraphQL;
 using Authoritative.Multiplayer;
 using Authoritative.Security;
 using Authoritative.Services;
+using Authoritative.Services.Grpc;
+using Grpc.AspNetCore.Web;
 using HotChocolate.AspNetCore;
 using HotChocolate.CostAnalysis;
+using MagicOnion.Server;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http;
@@ -96,6 +99,10 @@ builder.Services.AddHostedService<QueueConsumer>();
 builder.Services.AddSingleton<WorldEventPersistenceService>();
 builder.Services.AddSingleton<IWorldEventPersistenceService>(sp => sp.GetRequiredService<WorldEventPersistenceService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WorldEventPersistenceService>());
+builder.Services.AddSingleton<IWorldStreamEmitter, WorldStreamEmitter>();
+builder.Services.AddSingleton<WorldStreamRelay>();
+builder.Services.AddSingleton<IWorldStreamRelay>(sp => sp.GetRequiredService<WorldStreamRelay>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<WorldStreamRelay>());
 builder.Services.AddSingleton<AgentTaskService>();
 builder.Services.AddSingleton<IAgentTaskService>(sp => sp.GetRequiredService<AgentTaskService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<AgentTaskService>());
@@ -110,6 +117,8 @@ builder.Services.AddSingleton<IUserAccountService, UserAccountService>();
 builder.Services.AddSingleton<IClientRequestSecurityService, ClientRequestSecurityService>();
 builder.Services.AddSingleton<IAuthoritativeActionService, AuthoritativeActionService>();
 builder.Services.AddSingleton<DataLoaderCounters>();
+builder.Services.AddSingleton<IGridConfigStore, AdminGridConfigStore>();
+builder.Services.AddSingleton<IAdminFileStore, AdminFileStore>();
 
 // GraphQL API layer (HotChocolate). Joins the existing REST action API with a
 // cursor-paginated, DataLoader-backed schema for session/world/event reads and
@@ -136,9 +145,18 @@ var graphqlServer = builder.Services
 if (!graphqlEnabled)
     graphqlServer.DisableIntrospection(true);
 
+// Admin gRPC surface (MagicOnion). All gRPC calls are gated by the deny-by-default
+// AdminAuthFilter which requires an x-admin-api-key metadata header matching the
+// configured admin key. Additive to the existing HTTP admin endpoints.
+builder.Services.AddMagicOnion(options =>
+{
+    options.GlobalFilters.Add<AdminAuthFilter>();
+});
+
 var app = builder.Build();
 app.UseCors(LocalDevCorsPolicy);
 app.UseWebSockets();
+app.UseGrpcWeb();
 
 // list all sessions
 app.MapGet("/v1/world/sessions", async (
@@ -455,6 +473,80 @@ admin.MapGet("/generators/jobs/{jobId}", (
         : Results.Ok(job);
 });
 
+admin.MapGet("/generators/jobs/{jobId}/ingestion", async (
+    string jobId,
+    IHeadlessGeneratorService generators,
+    IScyllaWorldPersistenceService scylla,
+    CancellationToken cancellationToken) =>
+{
+    var job = generators.GetJob(jobId);
+    if (job == null)
+        return Results.NotFound(new { error = "generator job not found" });
+
+    // Only world-pipeline jobs are persisted to ScyllaDB.
+    var execution = job.Execution;
+    var worldPersisted = false;
+    var rooms = 0;
+    var enemies = 0;
+    var loot = 0;
+
+    if (string.Equals(job.GeneratorId, "world-pipeline", StringComparison.Ordinal) && execution != null)
+    {
+        var sessionId = execution.SessionId ?? job.SessionId ?? execution.ExecutionId;
+
+        // Persistence is background (async channel); retry briefly so a freshly
+        // completed job can surface a definitive answer instead of a false "missing".
+        const int attempts = 10;
+        for (var i = 0; i < attempts; i++)
+        {
+            var sessionRow = await scylla.GetSessionAsync(sessionId, cancellationToken).ConfigureAwait(false);
+            if (sessionRow != null)
+            {
+                var roomsTask   = scylla.GetRoomsAsync(sessionId, cancellationToken);
+                var enemiesTask = scylla.GetEnemiesAsync(sessionId, cancellationToken);
+                var lootTask    = scylla.GetLootAsync(sessionId, cancellationToken);
+                await Task.WhenAll(roomsTask, enemiesTask, lootTask).ConfigureAwait(false);
+
+                rooms   = (await roomsTask.ConfigureAwait(false)).Count;
+                enemies = (await enemiesTask.ConfigureAwait(false)).Count;
+                loot    = (await lootTask.ConfigureAwait(false)).Count;
+                worldPersisted = true;
+                break;
+            }
+
+            if (!scylla.IsAvailable())
+                break;
+
+            try { await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) { break; }
+        }
+
+        return Results.Ok(new
+        {
+            jobId,
+            generatorId = job.GeneratorId,
+            executionId = execution.ExecutionId,
+            sessionId,
+            worldPersisted,
+            rooms,
+            enemies,
+            loot,
+            scyllaAvailable = scylla.IsAvailable(),
+            checkedAtUtc = DateTime.UtcNow
+        });
+    }
+
+    return Results.Ok(new
+    {
+        jobId,
+        generatorId = job.GeneratorId,
+        worldPersisted = false,
+        scyllaAvailable = scylla.IsAvailable(),
+        checkedAtUtc = DateTime.UtcNow,
+        message = "Generator type is not persisted to ScyllaDB; only world-pipeline results are ingested."
+    });
+});
+
 admin.MapGet("/observability/snapshot", (
     string? sessionId,
         PipelineRuntimeService runtime,
@@ -641,40 +733,6 @@ app.MapGet("/v1/world/sessions/{sessionId}/metadata", async (
         : Results.Ok(new { sessionId, properties = meta });
 });
 
-app.MapPost("/v1/world/sessions/{sessionId}/snapshots/{entityId}", async (
-    HttpRequest req,
-    string sessionId,
-    string entityId,
-    SnapshotWriteRequest request,
-    IScyllaWorldPersistenceService scylla,
-    CancellationToken cancellationToken) =>
-{
-    if (request == null || string.IsNullOrWhiteSpace(request.SnapshotJson))
-        return Results.BadRequest(new { error = "SnapshotJson is required" });
-
-    // optional headers: X-Snapshot-TTL (seconds), X-Snapshot-Version
-    int ttl = 0;
-    int version = 1;
-    if (req.Headers.TryGetValue("X-Snapshot-TTL", out var ttlVals) && int.TryParse(ttlVals.ToString(), out var t)) ttl = t;
-    if (req.Headers.TryGetValue("X-Snapshot-Version", out var verVals) && int.TryParse(verVals.ToString(), out var v)) version = v;
-
-    var ok = await scylla.InsertEntitySnapshotAsync(sessionId, entityId, request.EntityType ?? "unknown", request.SnapshotJson, version: version, ttlSeconds: ttl, ct: cancellationToken);
-    return ok ? Results.Ok(new { sessionId, entityId }) : Results.StatusCode(500);
-});
-
-app.MapPost("/v1/world/sessions/{sessionId}/metadata", async (
-    string sessionId,
-    System.Collections.Generic.Dictionary<string, string> properties,
-    IScyllaWorldPersistenceService scylla,
-    CancellationToken cancellationToken) =>
-{
-    if (properties == null || properties.Count == 0)
-        return Results.BadRequest(new { error = "properties map is required" });
-
-    var ok = await scylla.UpsertSessionMetadataAsync(sessionId, properties, cancellationToken);
-    return ok ? Results.Ok(new { sessionId }) : Results.StatusCode(500);
-});
-
 // Convenience: full snapshot for a session in one call
 app.MapGet("/v1/world/sessions/{sessionId}/snapshot", async (
     string sessionId,
@@ -753,6 +811,165 @@ app.MapGet("/v1/world/sessions/{sessionId}/binary-snapshot", async (
 
     var binaryBytes = BinaryWorldSnapshotSerializer.SerializeWorldArtifact(sessionId, sessionRow.ExecutionId, world);
     return Results.File(binaryBytes, "application/octet-stream", $"snapshot_{sessionId}.bin");
+});
+
+// ── Admin world explorer / ingestion ────────────────────────────────────────
+static GeneratedWorldArtifact SanitizeWorldArtifact(GeneratedWorldArtifact w)
+{
+    w.Seed         = Math.Clamp(w.Seed, 0, int.MaxValue);
+    w.Width        = Math.Clamp(w.Width, 16, 1024);
+    w.Height       = Math.Clamp(w.Height, 16, 1024);
+    w.DungeonLevel = Math.Clamp(w.DungeonLevel, 0, 100);
+
+    w.Rooms = w.Rooms
+        .Where(r => r.Width > 0 && r.Height > 0)
+        .Take(4096)
+        .Select(r => new WorldRoom
+        {
+            Id = Math.Clamp(r.Id, 0, int.MaxValue),
+            X = Math.Clamp(r.X, 0, w.Width),
+            Y = Math.Clamp(r.Y, 0, w.Height),
+            Width = Math.Clamp(r.Width, 1, Math.Max(1, w.Width)),
+            Height = Math.Clamp(r.Height, 1, Math.Max(1, w.Height)),
+        }).ToList();
+
+    w.Enemies = w.Enemies
+        .Take(8192)
+        .Select(e => new WorldEnemy
+        {
+            Id = Math.Clamp(e.Id, 0, int.MaxValue),
+            Archetype = SanitizeToken(e.Archetype, 32),
+            X = Math.Clamp(e.X, 0, w.Width),
+            Y = Math.Clamp(e.Y, 0, w.Height),
+            Level = Math.Clamp(e.Level, 0, 999),
+        }).ToList();
+
+    w.Loot = w.Loot
+        .Take(8192)
+        .Select(l => new WorldLoot
+        {
+            ItemId = SanitizeToken(l.ItemId, 64),
+            ItemType = SanitizeToken(l.ItemType, 32),
+            Tier = SanitizeToken(l.Tier, 16),
+            X = Math.Clamp(l.X, 0, w.Width),
+            Y = Math.Clamp(l.Y, 0, w.Height),
+        }).ToList();
+
+    return w;
+}
+
+static string SanitizeToken(string value, int maxLength)
+{
+    if (string.IsNullOrWhiteSpace(value)) return "unknown";
+    var cleaned = new string(value.Trim().Where(c =>
+        char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == '.' || c == '/' || c == ' ').ToArray());
+    if (string.IsNullOrWhiteSpace(cleaned)) return "unknown";
+    return cleaned.Length > maxLength ? cleaned[..maxLength] : cleaned;
+}
+
+static PipelineExecutionRecord BuildExecutionFromIngest(string sessionId, WorldIngestRequest req)
+{
+    var now = DateTime.UtcNow;
+    return new PipelineExecutionRecord
+    {
+        ExecutionId = string.IsNullOrWhiteSpace(req.ExecutionId) ? $"ingest-{Guid.NewGuid():N}" : SanitizeToken(req.ExecutionId, 80),
+        PipelineId = string.IsNullOrWhiteSpace(req.PipelineId) ? "admin-ingest" : SanitizeToken(req.PipelineId, 80),
+        RequestId = $"ingest-{sessionId}",
+        SessionId = sessionId,
+        RequestedBy = "admin-ui",
+        Notes = req.Notes ?? "Ingested via admin world explorer",
+        StartedAtUtc = now,
+        CompletedAtUtc = now,
+        Status = "completed",
+        World = SanitizeWorldArtifact(req.World),
+    };
+}
+
+admin.MapGet("/world/sessions", async (
+    IScyllaWorldPersistenceService scylla,
+    CancellationToken ct) =>
+{
+    var ids = await scylla.GetAllSessionIdsAsync(ct);
+    var summaries = new List<object>();
+    foreach (var id in ids)
+    {
+        var row = await scylla.GetSessionAsync(id, ct);
+        if (row == null) continue;
+        summaries.Add(new
+        {
+            sessionId = row.SessionId,
+            executionId = row.ExecutionId,
+            pipelineId = row.PipelineId,
+            seed = row.Seed,
+            width = row.Width,
+            height = row.Height,
+            dungeonLevel = row.DungeonLevel,
+            roomCount = row.RoomCount,
+            enemyCount = row.EnemyCount,
+            lootCount = row.LootCount,
+            persistedAtUtc = row.CreatedAt,
+        });
+    }
+    summaries = summaries.OrderByDescending(s => ((dynamic)s).persistedAtUtc).ToList();
+    return Results.Ok(new { count = summaries.Count, sessions = summaries });
+});
+
+admin.MapGet("/world/sessions/{sessionId}", async (
+    string sessionId,
+    IScyllaWorldPersistenceService scylla,
+    CancellationToken ct) =>
+{
+    var session = await scylla.GetSessionAsync(sessionId, ct);
+    if (session == null) return Results.NotFound(new { error = "world session not found" });
+
+    var roomsTask = scylla.GetRoomsAsync(sessionId, ct);
+    var enemiesTask = scylla.GetEnemiesAsync(sessionId, ct);
+    var lootTask = scylla.GetLootAsync(sessionId, ct);
+    var metaTask = scylla.GetSessionMetadataAsync(sessionId, ct);
+    await Task.WhenAll(roomsTask, enemiesTask, lootTask, metaTask);
+
+    return Results.Ok(new
+    {
+        session,
+        rooms = await roomsTask,
+        enemies = await enemiesTask,
+        loot = await lootTask,
+        metadata = await metaTask,
+    });
+});
+
+admin.MapPost("/world/sessions/{sessionId}/ingest", async (
+    string sessionId,
+    WorldIngestRequest request,
+    IScyllaWorldPersistenceService scylla,
+    CancellationToken ct) =>
+{
+    if (request?.World == null || request.World.Rooms == null || request.World.Rooms.Count == 0)
+        return Results.BadRequest(new { error = "ingest payload requires a world with at least one room" });
+
+    if (request.World.Rooms.Count > 11000
+        || (request.World.Enemies?.Count ?? 0) > 20000
+        || (request.World.Loot?.Count ?? 0) > 20000)
+        return Results.BadRequest(new { error = "world exceeds ingestion limits (rooms<=11000, enemies<=20000, loot<=20000)" });
+
+    if (!scylla.IsAvailable())
+        return Results.Problem(title: "ScyllaDB world persistence is not available", statusCode: 503);
+
+    var record = BuildExecutionFromIngest(sessionId, request);
+    var outcome = await scylla.PersistWorldAsync(record, ct);
+
+    if (!outcome.Success)
+        return Results.Problem(title: "World ingestion failed", detail: outcome.Error, statusCode: 502);
+
+    return Results.Ok(new
+    {
+        success = true,
+        sessionId = outcome.SessionId,
+        executionId = outcome.ExecutionId,
+        rooms = outcome.Rooms,
+        enemies = outcome.Enemies,
+        loot = outcome.Loot,
+    });
 });
 
 // ── Pool endpoints ──────────────────────────────────────────────────────────
@@ -1066,6 +1283,7 @@ client.MapGet("/sessions/{sessionId}/world/bootstrap", (
         SnapshotUrl = $"{baseUrl}/admin/observability/snapshot?{query}",
         StreamUrl = $"{baseUrl}/admin/observability/stream?{query}",
         WebSocketUrl = $"{(scheme == "https" ? "wss" : "ws")}://{host}/admin/observability/ws?{query}",
+        LiveStreamUrl = $"{(scheme == "https" ? "wss" : "ws")}://{host}/client/stream/ws?sessionId={Uri.EscapeDataString(sessionId)}",
         TimelineUrl = $"{baseUrl}/client/sessions/{Uri.EscapeDataString(sessionId)}/timeline"
     };
 
@@ -1083,6 +1301,89 @@ client.MapGet("/sessions/{sessionId}/timeline", (
         Events = observability.GetSessionTimeline(sessionId, take ?? 200)
     });
 });
+
+client.MapGet("/stream/ws", async (
+    string? sessionId,
+    HttpContext http,
+    IWorldStreamRelay relay) =>
+{
+    if (!http.WebSockets.IsWebSocketRequest)
+        return Results.BadRequest(new { error = "websocket upgrade required" });
+
+    using var socket = await http.WebSockets.AcceptWebSocketAsync();
+    var effectiveSession = string.IsNullOrWhiteSpace(sessionId) ? null : sessionId;
+
+    // Catch up from the Redis hot-cache buffer so recent frames are not missed.
+    if (effectiveSession != null)
+        await relay.CatchUpAsync(socket, effectiveSession, http.RequestAborted);
+
+    relay.Subscribe(socket, effectiveSession);
+    try
+    {
+        while (socket.State == WebSocketState.Open && !http.RequestAborted.IsCancellationRequested)
+        {
+            var buffer = new byte[1024];
+            var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), http.RequestAborted);
+            if (result.MessageType == WebSocketMessageType.Close)
+                break;
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        // client aborted; clean up below
+    }
+    catch (WebSocketException)
+    {
+        // client closed abruptly; clean up below
+    }
+    finally
+    {
+        relay.Unsubscribe(socket);
+    }
+
+    if (socket.State == WebSocketState.Open)
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "closing", http.RequestAborted);
+
+    return Results.Empty;
+});
+
+// Write-path approval: entity snapshot + session metadata writes are gated
+// behind the signed /client group (ValidateClientSecurityAsync), so a hostile
+// caller cannot push arbitrary durable state into Scylla without an
+// authenticated, checksummed client request. See SnapshotSender for the client.
+client.MapPost("/world/sessions/{sessionId}/snapshots/{entityId}", async (
+    HttpRequest req,
+    string sessionId,
+    string entityId,
+    SnapshotWriteRequest request,
+    IScyllaWorldPersistenceService scylla,
+    CancellationToken cancellationToken) =>
+{
+    if (request == null || string.IsNullOrWhiteSpace(request.SnapshotJson))
+        return Results.BadRequest(new { error = "SnapshotJson is required" });
+
+    int ttl = 0;
+    int version = 1;
+    if (req.Headers.TryGetValue("X-Snapshot-TTL", out var ttlVals) && int.TryParse(ttlVals.ToString(), out var t)) ttl = t;
+    if (req.Headers.TryGetValue("X-Snapshot-Version", out var verVals) && int.TryParse(verVals.ToString(), out var v)) version = v;
+
+    var ok = await scylla.InsertEntitySnapshotAsync(sessionId, entityId, request.EntityType ?? "unknown", request.SnapshotJson, version: version, ttlSeconds: ttl, ct: cancellationToken);
+    return ok ? Results.Ok(new { sessionId, entityId }) : Results.StatusCode(500);
+});
+
+client.MapPost("/world/sessions/{sessionId}/metadata", async (
+    string sessionId,
+    System.Collections.Generic.Dictionary<string, string> properties,
+    IScyllaWorldPersistenceService scylla,
+    CancellationToken cancellationToken) =>
+{
+    if (properties == null || properties.Count == 0)
+        return Results.BadRequest(new { error = "properties map is required" });
+
+    var ok = await scylla.UpsertSessionMetadataAsync(sessionId, properties, cancellationToken);
+    return ok ? Results.Ok(new { sessionId }) : Results.StatusCode(500);
+});
+
 
 client.MapGet("/sessions/{sessionId}/world/current", async (
     string sessionId,
@@ -1230,13 +1531,142 @@ admin.MapDelete("/agent/tasks/{taskId}", async (
     return Results.Ok(new { ok = true });
 });
 
+// ── Admin grid-config surface ──────────────────────────────────────────────
+// Lets the admin panel save/load terrain/dungeon grid configurations. Additive,
+// authenticated via the /admin group filter (nginx sets X-Admin-Key). The panel
+// owns the shape of the gridConfig object; the backend stores it as opaque JSON.
+admin.MapPost("/grid-configs/{gridId}", (
+    string gridId,
+    GridConfigSaveRequest request,
+    IGridConfigStore grids) =>
+{
+    if (string.IsNullOrWhiteSpace(gridId) || request?.GridConfig == null)
+        return Results.BadRequest(new { error = "gridId and gridConfig are required" });
+
+    var json = JsonSerializer.Serialize(request.GridConfig);
+    grids.Save(gridId, json);
+    return Results.Ok(new { gridId = gridId.Trim(), saved = true });
+});
+
+admin.MapGet("/grid-configs", (IGridConfigStore grids) =>
+{
+    var configs = grids.GetAll()
+        .Select(c => new { gridId = c.GridId, savedAtUtc = c.SavedAtUtc })
+        .ToList();
+    return Results.Ok(new { count = configs.Count, configs });
+});
+
+admin.MapGet("/grid-configs/{gridId}", (string gridId, IGridConfigStore grids) =>
+{
+    if (!grids.TryGet(gridId, out var config))
+        return Results.NotFound(new { error = "grid config not found" });
+
+    object? parsed;
+    try
+    {
+        parsed = JsonSerializer.Deserialize<object>(config!.GridConfigJson);
+    }
+    catch
+    {
+        return Results.Problem(title: "grid config is not valid JSON", statusCode: 500);
+    }
+
+    return Results.Ok(new { gridId = config!.GridId, savedAtUtc = config.SavedAtUtc, gridConfig = parsed });
+});
+
+// ── Admin file-store surface ───────────────────────────────────────────────
+// Lets the admin panel list/upload/download/delete 3D asset files and extracted
+// archive contents. Additive and authenticated via the /admin group filter.
+admin.MapGet("/files", (IAdminFileStore files) =>
+{
+    var list = files.List()
+        .Select(f => new
+        {
+            id = f.Id,
+            name = f.Name,
+            size = f.Size,
+            fileType = f.FileType,
+            uploadedAtUnixMs = f.UploadedAtUnixMs,
+            relativePath = f.RelativePath,
+            isDirectory = f.IsDirectory,
+            archiveType = f.ArchiveType,
+            extractionSourceId = f.ExtractionSourceId
+        })
+        .ToList();
+    return Results.Ok(new { count = list.Count, files = list });
+});
+
+admin.MapPost("/files", (AdminFileWriteRequest request, IAdminFileStore files) =>
+{
+    if (request == null || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.DataBase64))
+        return Results.BadRequest(new { error = "name and dataBase64 are required" });
+
+    byte[] contents;
+    try
+    {
+        contents = Convert.FromBase64String(request.DataBase64);
+    }
+    catch (FormatException)
+    {
+        return Results.BadRequest(new { error = "dataBase64 is not valid base64" });
+    }
+
+    var meta = new AdminFileMeta
+    {
+        Id = string.IsNullOrWhiteSpace(request.Id) ? Guid.NewGuid().ToString("N") : request.Id,
+        Name = request.Name.Trim(),
+        Size = request.Size >= 0 ? request.Size : contents.Length,
+        FileType = string.IsNullOrWhiteSpace(request.FileType) ? "GLB" : request.FileType.Trim(),
+        UploadedAtUnixMs = request.UploadedAtUnixMs,
+        RelativePath = request.RelativePath ?? string.Empty,
+        IsDirectory = request.IsDirectory,
+        ArchiveType = request.ArchiveType,
+        ExtractionSourceId = request.ExtractionSourceId
+    };
+
+    var id = files.Save(meta, contents);
+    return Results.Ok(new { id, size = contents.Length });
+});
+
+admin.MapGet("/files/{fileId}/download", (string fileId, IAdminFileStore files) =>
+{
+    if (!files.TryGet(fileId, out var meta, out var contents))
+        return Results.NotFound(new { error = "file not found" });
+
+    return Results.File(contents!, "application/octet-stream", meta!.Name);
+});
+
+admin.MapDelete("/files/{fileId}", (string fileId, IAdminFileStore files) =>
+{
+    return files.Delete(fileId)
+        ? Results.Ok(new { ok = true })
+        : Results.NotFound(new { error = "file not found" });
+});
+
 // ── GraphQL API ────────────────────────────────────────────────────────────
 // Served at /graphql and gated with the SAME client security used by the
 // /client REST group so queries/mutations require the client API key.
 app.MapGraphQL("/graphql")
     .AddEndpointFilter(ValidateClientSecurityAsync);
 
+// Admin gRPC-Web surface (MagicOnion). gRPC-Web is active via app.UseGrpcWeb() above.
+app.MapMagicOnionService();
+
 await app.RunAsync();
 
 record SnapshotWriteRequest(string EntityType, string SnapshotJson);
+
+record GridConfigSaveRequest(object GridConfig);
+
+record AdminFileWriteRequest(
+    string? Id,
+    string? Name,
+    long Size,
+    string? FileType,
+    long UploadedAtUnixMs,
+    string? RelativePath,
+    bool IsDirectory,
+    string? ArchiveType,
+    string? ExtractionSourceId,
+    string? DataBase64);
 #endif

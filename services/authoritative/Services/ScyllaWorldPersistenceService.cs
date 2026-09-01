@@ -25,7 +25,9 @@ namespace Authoritative.Services
     /// </summary>
     public interface IScyllaWorldPersistenceService
     {
+        bool IsAvailable();
         void EnqueueWorld(PipelineExecutionRecord record);
+        Task<WorldIngestOutcome> PersistWorldAsync(PipelineExecutionRecord record, CancellationToken ct);
         Task<WorldSessionRow?> GetSessionAsync(string sessionId, CancellationToken ct);
         Task<IReadOnlyList<WorldRoomRow>> GetRoomsAsync(string sessionId, CancellationToken ct);
         Task<IReadOnlyList<WorldEnemyRow>> GetEnemiesAsync(string sessionId, CancellationToken ct);
@@ -38,6 +40,18 @@ namespace Authoritative.Services
     }
 
     // ── Query result rows ────────────────────────────────────────────────────
+    public sealed class WorldIngestOutcome
+    {
+        public bool Success { get; set; }
+        public bool ScyllaAvailable { get; set; }
+        public string SessionId { get; set; } = string.Empty;
+        public string ExecutionId { get; set; } = string.Empty;
+        public int Rooms { get; set; }
+        public int Enemies { get; set; }
+        public int Loot { get; set; }
+        public string? Error { get; set; }
+    }
+
     public sealed class WorldSessionRow
     {
         public string SessionId { get; set; } = string.Empty;
@@ -101,7 +115,10 @@ namespace Authoritative.Services
         private static readonly Counter _metadataUpsertFailuresTotal = Metrics.CreateCounter("scylla_metadata_upsert_failures_total", "Session metadata upsert failures to Scylla");
 
         private readonly string _contactPoint;
+        private readonly string _keyspaceDdl;
+        private readonly string _localDataCenter;
         private readonly ILogger<ScyllaWorldPersistenceService> _log;
+        private readonly IWorldStreamEmitter _stream;
         private readonly Channel<PipelineExecutionRecord> _queue;
 
         private ICluster? _cluster;
@@ -119,10 +136,14 @@ namespace Authoritative.Services
 
         public ScyllaWorldPersistenceService(
             IConfiguration config,
-            ILogger<ScyllaWorldPersistenceService> log)
+            ILogger<ScyllaWorldPersistenceService> log,
+            IWorldStreamEmitter stream)
         {
             _contactPoint = config["SCYLLA_CONTACT_POINT"] ?? "scylla";
+            _keyspaceDdl = PersistenceSchemaText.BuildMmoWorldKeyspaceDdl(config);
+            _localDataCenter = config["SCYLLA_LOCAL_DC"] ?? "dc1";
             _log = log;
+            _stream = stream;
             _queue = Channel.CreateBounded<PipelineExecutionRecord>(
                 new BoundedChannelOptions(1_000)
                 {
@@ -133,6 +154,11 @@ namespace Authoritative.Services
         }
 
         // ── IScyllaWorldPersistenceService ───────────────────────────────────
+
+        public bool IsAvailable()
+        {
+            return _schemaReady;
+        }
 
         public void EnqueueWorld(PipelineExecutionRecord record)
         {
@@ -422,16 +448,31 @@ namespace Authoritative.Services
             {
                 try
                 {
-                    _cluster = Cluster.Builder()
-                        .AddContactPoint(_contactPoint)
+                    var clusterBuilder = Cluster.Builder();
+                    var seeds = _contactPoint.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    if (seeds.Length <= 1)
+                        clusterBuilder.AddContactPoint(_contactPoint);
+                    else
+                        clusterBuilder.AddContactPoints(seeds);
+
+                    _cluster = clusterBuilder
                         .WithPort(9042)
+                        .WithSocketOptions(new SocketOptions()
+                            .SetConnectTimeoutMillis(10_000)
+                            .SetReadTimeoutMillis(30_000))
+                        .WithLoadBalancingPolicy(new DCAwareRoundRobinPolicy(_localDataCenter))
+                        .WithQueryOptions(new QueryOptions().SetConsistencyLevel(ConsistencyLevel.LocalQuorum))
                         .Build();
+
+                    _log.LogInformation(
+                        "ScyllaDB connecting to {Seeds} (localDC={LocalDC}) attempt {Attempt}/{Max}...",
+                        _contactPoint, _localDataCenter, attempt, maxAttempts);
 
                     _session = await Task.Run(() => _cluster.Connect(), ct).ConfigureAwait(false);
 
-                    // Keyspace — SimpleStrategy is fine for a single-node dev cluster.
+                    // Regionalized NetworkTopologyStrategy keyspace, built from SCYLLA_REPLICATION.
                     await _session.ExecuteAsync(new SimpleStatement(
-                        PersistenceSchemaText.MmoWorldKeyspaceDdl)).ConfigureAwait(false);
+                        _keyspaceDdl)).ConfigureAwait(false);
 
                     await _session.ExecuteAsync(new SimpleStatement(
                         "USE mmo_world")).ConfigureAwait(false);
@@ -496,9 +537,19 @@ namespace Authoritative.Services
             }
         }
 
-        private async Task PersistWorldAsync(PipelineExecutionRecord record, CancellationToken ct)
+        public async Task<WorldIngestOutcome> PersistWorldAsync(PipelineExecutionRecord record, CancellationToken ct)
         {
-            if (_session == null || _psInsertSession == null) return;
+            if (_session == null || _psInsertSession == null || !_schemaReady)
+            {
+                return new WorldIngestOutcome
+                {
+                    Success = false,
+                    ScyllaAvailable = false,
+                    SessionId = record.SessionId ?? record.ExecutionId,
+                    ExecutionId = record.ExecutionId,
+                    Error = "ScyllaDB world persistence is not available (schema not ready).",
+                };
+            }
 
             var world   = record.World;
             var session = record.SessionId ?? record.ExecutionId;
@@ -559,11 +610,44 @@ namespace Authoritative.Services
                     "rooms={Rooms} enemies={Enemies} loot={Loot}",
                     record.ExecutionId, session,
                     world.Rooms.Count, world.Enemies.Count, world.Loot.Count);
+
+                await _stream.EmitAsync(new WorldStreamMessage
+                {
+                    Type = "world.persisted",
+                    SessionId = session,
+                    EntityId = record.ExecutionId,
+                    Data = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["pipelineId"] = record.PipelineId ?? string.Empty,
+                        ["rooms"] = world.Rooms.Count.ToString(),
+                        ["enemies"] = world.Enemies.Count.ToString(),
+                        ["loot"] = world.Loot.Count.ToString()
+                    }
+                }, ct).ConfigureAwait(false);
+
+                return new WorldIngestOutcome
+                {
+                    Success = true,
+                    ScyllaAvailable = true,
+                    SessionId = session,
+                    ExecutionId = record.ExecutionId,
+                    Rooms = world.Rooms.Count,
+                    Enemies = world.Enemies.Count,
+                    Loot = world.Loot.Count,
+                };
             }
             catch (Exception ex)
             {
                 _log.LogError(ex,
                     "Failed to persist world {ExecutionId} to ScyllaDB", record.ExecutionId);
+                return new WorldIngestOutcome
+                {
+                    Success = false,
+                    ScyllaAvailable = true,
+                    SessionId = session,
+                    ExecutionId = record.ExecutionId,
+                    Error = ex.Message,
+                };
             }
         }
     }

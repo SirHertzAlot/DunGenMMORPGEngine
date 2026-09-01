@@ -19,7 +19,7 @@ namespace Authoritative.Services.Clients
 
         public async Task<bool> SendSnapshotAsync(string baseUrl, string sessionId, string entityId, string entityType, string snapshotJson, int version = 1, int? ttlSeconds = null, CancellationToken ct = default)
         {
-            var url = $"{baseUrl.TrimEnd('/')}/v1/world/sessions/{sessionId}/snapshots/{entityId}";
+            var url = $"{baseUrl.TrimEnd('/')}/client/world/sessions/{sessionId}/snapshots/{entityId}";
             var body = new
             {
                 EntityType = entityType,
@@ -42,7 +42,7 @@ namespace Authoritative.Services.Clients
 
         public async Task<bool> UpsertMetadataAsync(string baseUrl, string sessionId, IDictionary<string,string> properties, CancellationToken ct = default)
         {
-            var url = $"{baseUrl.TrimEnd('/')}/v1/world/sessions/{sessionId}/metadata";
+            var url = $"{baseUrl.TrimEnd('/')}/client/world/sessions/{sessionId}/metadata";
             var res = await _http.PostAsJsonAsync(url, properties, ct).ConfigureAwait(false);
             return res.IsSuccessStatusCode;
         }
