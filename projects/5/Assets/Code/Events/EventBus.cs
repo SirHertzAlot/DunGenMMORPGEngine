@@ -13,6 +13,7 @@ namespace DunGen.Events
         private static EventBus _instance;
         public static EventBus Instance => _instance ??= new EventBus();
 
+        private readonly object _gate = new();
         private readonly Dictionary<Type, List<Delegate>> _listeners = new();
         private readonly List<Action<object, Type>> _globalListeners = new();
         private ulong _nextEventId = 1;
@@ -27,10 +28,13 @@ namespace DunGen.Events
         public void Subscribe<T>(Action<T> handler) where T : struct
         {
             var eventType = typeof(T);
-            if (!_listeners.ContainsKey(eventType))
-                _listeners[eventType] = new List<Delegate>();
-            
-            _listeners[eventType].Add(handler);
+            lock (_gate)
+            {
+                if (!_listeners.ContainsKey(eventType))
+                    _listeners[eventType] = new List<Delegate>();
+
+                _listeners[eventType].Add(handler);
+            }
         }
 
         /// <summary>
@@ -39,8 +43,11 @@ namespace DunGen.Events
         public void Unsubscribe<T>(Action<T> handler) where T : struct
         {
             var eventType = typeof(T);
-            if (_listeners.ContainsKey(eventType))
-                _listeners[eventType].Remove(handler);
+            lock (_gate)
+            {
+                if (_listeners.ContainsKey(eventType))
+                    _listeners[eventType].Remove(handler);
+            }
         }
 
         /// <summary>
@@ -49,8 +56,18 @@ namespace DunGen.Events
         /// </summary>
         public Action SubscribeAll(Action<object, Type> handler)
         {
-            _globalListeners.Add(handler);
-            return () => _globalListeners.Remove(handler);
+            lock (_gate)
+            {
+                _globalListeners.Add(handler);
+            }
+
+            return () =>
+            {
+                lock (_gate)
+                {
+                    _globalListeners.Remove(handler);
+                }
+            };
         }
 
         /// <summary>
@@ -59,20 +76,27 @@ namespace DunGen.Events
         public void Publish<T>(T @event) where T : struct
         {
             var eventType = typeof(T);
-            if (_listeners.TryGetValue(eventType, out var handlers))
+            Delegate[] handlers;
+            Action<object, Type>[] globalHandlers;
+            lock (_gate)
             {
-                foreach (var handler in handlers)
-                {
-                    if (handler is Action<T> typedHandler)
-                        typedHandler(@event);
-                }
+                handlers = _listeners.TryGetValue(eventType, out var registeredHandlers)
+                    ? registeredHandlers.ToArray()
+                    : Array.Empty<Delegate>();
+                globalHandlers = _globalListeners.ToArray();
             }
 
-            for (int i = 0; i < _globalListeners.Count; i++)
+            foreach (var handler in handlers)
+            {
+                if (handler is Action<T> typedHandler)
+                    typedHandler(@event);
+            }
+
+            for (int i = 0; i < globalHandlers.Length; i++)
             {
                 try
                 {
-                    _globalListeners[i](@event, eventType);
+                    globalHandlers[i](@event, eventType);
                 }
                 catch
                 {
@@ -86,7 +110,10 @@ namespace DunGen.Events
         /// </summary>
         public ulong GetNextEventId()
         {
-            return _nextEventId++;
+            lock (_gate)
+            {
+                return _nextEventId++;
+            }
         }
 
         /// <summary>
@@ -94,9 +121,12 @@ namespace DunGen.Events
         /// </summary>
         public void Clear()
         {
-            _listeners.Clear();
-            _globalListeners.Clear();
-            _nextEventId = 1;
+            lock (_gate)
+            {
+                _listeners.Clear();
+                _globalListeners.Clear();
+                _nextEventId = 1;
+            }
         }
 
         /// <summary>
@@ -105,7 +135,10 @@ namespace DunGen.Events
         public int GetSubscriberCount<T>() where T : struct
         {
             var eventType = typeof(T);
-            return _listeners.TryGetValue(eventType, out var handlers) ? handlers.Count : 0;
+            lock (_gate)
+            {
+                return _listeners.TryGetValue(eventType, out var handlers) ? handlers.Count : 0;
+            }
         }
     }
 }

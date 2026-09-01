@@ -53,6 +53,7 @@ namespace DunGen.ECS.Core
         private const int MaxEntitiesPerSession = 16;
         private readonly int[,] _sessionEntities;
         private readonly byte[] _sessionEntityCounts;
+        private readonly int[] _combatSessionByEntityIndex;
 
         // Cached special entities
         private int _playerEntityIndex = InvalidIndex;
@@ -63,6 +64,8 @@ namespace DunGen.ECS.Core
             _slots = new EntitySlot[MaxEntities];
             _sessionEntities = new int[MaxSessions, MaxEntitiesPerSession];
             _sessionEntityCounts = new byte[MaxSessions];
+            _combatSessionByEntityIndex = new int[MaxEntities];
+            Array.Fill(_combatSessionByEntityIndex, InvalidIndex);
 
             // Initialize session arrays with InvalidIndex
             for (int s = 0; s < MaxSessions; s++)
@@ -121,6 +124,10 @@ namespace DunGen.ECS.Core
             if (idx < 0 || idx >= MaxEntities)
                 return;
 
+            int previousSessionId = _combatSessionByEntityIndex[idx];
+            if (previousSessionId != InvalidIndex && previousSessionId != combatSessionId)
+                UnregisterFromSession(idx, previousSessionId);
+
             // Mark as in combat
             _slots[idx].Flags |= EntityFlags.InCombat;
 
@@ -136,6 +143,7 @@ namespace DunGen.ECS.Core
             {
                 _sessionEntities[combatSessionId, count] = idx;
                 _sessionEntityCounts[combatSessionId]++;
+                _combatSessionByEntityIndex[idx] = combatSessionId;
             }
         }
 
@@ -268,7 +276,11 @@ namespace DunGen.ECS.Core
                     _sessionEntityCounts[combatSessionId]--;
 
                     if (entityIndex >= 0 && entityIndex < MaxEntities)
+                    {
                         _slots[entityIndex].Flags &= ~EntityFlags.InCombat;
+                        if (_combatSessionByEntityIndex[entityIndex] == combatSessionId)
+                            _combatSessionByEntityIndex[entityIndex] = InvalidIndex;
+                    }
 
                     return;
                 }
@@ -321,6 +333,7 @@ namespace DunGen.ECS.Core
         {
             Array.Clear(_slots, 0, _slots.Length);
             Array.Clear(_sessionEntityCounts, 0, _sessionEntityCounts.Length);
+            Array.Fill(_combatSessionByEntityIndex, InvalidIndex);
 
             for (int s = 0; s < MaxSessions; s++)
             {

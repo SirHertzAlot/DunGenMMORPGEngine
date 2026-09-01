@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using DunGen.Config;
+using DunGen.Core;
 using DunGen.ECS.Combat;
 using DunGen.ECS.Components;
 using DunGen.ECS.Core;
@@ -52,19 +53,27 @@ namespace DunGen.Gameplay
         private int _nextCombatSessionId = 100;
         private readonly EntityIndexCache _entityCache;
         private readonly SpatialHashGrid _spatialGrid;
+        private readonly ISimulationClock _clock;
+        private bool _isDisposed;
 
-        public GameSession(int seed = 12345, VisualSpawnPoolConfig visualSpawnConfig = null, ModelAssetManifest visualManifest = null)
+        public GameSession(
+            int seed = 12345,
+            VisualSpawnPoolConfig visualSpawnConfig = null,
+            ModelAssetManifest visualManifest = null,
+            EventBus eventBus = null,
+            ISimulationClock clock = null)
         {
             _seed = seed;
             _rng = new DeterministicRNG(seed);
             _generator = new SimpleDungeonGenerator(seed);
-            _eventBus = EventBus.Instance;
+            _eventBus = eventBus ?? EventBus.Instance;
             _eventLog = new EventLog();
             _eventLogSubscription = _eventBus.SubscribeAll((evt, _) => _eventLog.RecordPublishedEvent(evt));
             _ecsWorld = World.DefaultGameObjectInjectionWorld ?? new World("DunGenGameSession");
             _entityManager = _ecsWorld.EntityManager;
             _entityCache = EntityIndexCache.Instance;
             _spatialGrid = SpatialHashGrid.Instance;
+            _clock = clock ?? new FixedStepSimulationClock();
             _visualSpawnConfig = visualSpawnConfig ?? LoadDefaultVisualSpawnConfig();
             _visualManifest = visualManifest ?? PolygonFantasyHeroManifest.LoadFromResources();
             _visualPoolRoot = new GameObject("GameSession Visual Spawn Pool");
@@ -75,6 +84,7 @@ namespace DunGen.Gameplay
         public void StartGame()
         {
             _eventLog.Initialize((ulong)_seed);
+            _clock.Reset();
             CleanupSessionEntities();
 
             CurrentLevel = 1;
@@ -362,6 +372,7 @@ namespace DunGen.Gameplay
         private void ExecuteTurnWithAutoplay()
         {
             TurnCount++;
+            _clock.SetFrame((uint)TurnCount);
             _eventBus.Publish(new GameTurnStartedEventData
             {
                 EventId = _eventBus.GetNextEventId(),
@@ -398,6 +409,7 @@ namespace DunGen.Gameplay
                 return false;
 
             TurnCount++;
+            _clock.SetFrame((uint)TurnCount);
             _eventBus.Publish(new GameTurnStartedEventData
             {
                 EventId = _eventBus.GetNextEventId(),
@@ -804,8 +816,8 @@ namespace DunGen.Gameplay
             _eventBus.Publish(new CombatStartedEventData
             {
                 EventId = _eventBus.GetNextEventId(),
-                FrameNumber = (uint)Time.frameCount,
-                Timestamp = (uint)Time.frameCount / 60f,
+                FrameNumber = CurrentFrameNumber(),
+                Timestamp = CurrentTimestamp(),
                 ParticipantEntityIds = new[] { playerEntity.Index, enemyEntity.Index },
                 InitiativeOrder = initiativeOrder,
                 CombatSessionId = combatSessionId
@@ -936,8 +948,8 @@ namespace DunGen.Gameplay
             _eventBus.Publish(new DeathEventData
             {
                 EventId = _eventBus.GetNextEventId(),
-                FrameNumber = (uint)Time.frameCount,
-                Timestamp = (uint)Time.frameCount / 60f,
+                FrameNumber = CurrentFrameNumber(),
+                Timestamp = CurrentTimestamp(),
                 DeceasedEntityId = target.Index,
                 KillerEntityId = attackerId,
                 SurvivingCombatants = GetLivingCombatants(targetCombat.CombatSessionId),
@@ -1007,8 +1019,8 @@ namespace DunGen.Gameplay
                 _eventBus.Publish(new LootGrantedEventData
                 {
                     EventId = _eventBus.GetNextEventId(),
-                    FrameNumber = (uint)Time.frameCount,
-                    Timestamp = (uint)Time.frameCount / 60f,
+                    FrameNumber = CurrentFrameNumber(),
+                    Timestamp = CurrentTimestamp(),
                     RecipientEntityId = playerEntity.Index,
                     LootTableId = loot.LootTableId,
                     GoldAmount = goldAward
@@ -1021,8 +1033,8 @@ namespace DunGen.Gameplay
                     _eventBus.Publish(new LevelUpEventData
                     {
                         EventId = _eventBus.GetNextEventId(),
-                        FrameNumber = (uint)Time.frameCount,
-                        Timestamp = (uint)Time.frameCount / 60f,
+                        FrameNumber = CurrentFrameNumber(),
+                        Timestamp = CurrentTimestamp(),
                         EntityId = playerEntity.Index,
                         PreviousLevel = previousLevel,
                         NewLevel = experience.Level,
@@ -1188,7 +1200,7 @@ namespace DunGen.Gameplay
                 visual = result.Root;
             }
 
-            visual.transform.position = new Vector3(x, level, y);
+            visual.transform.position = new UnityEngine.Vector3(x, level, y);
             _entityVisuals[entity.Index] = new PooledVisualBinding
             {
                 Archetype = archetype,
@@ -1232,12 +1244,26 @@ namespace DunGen.Gameplay
 
         public void Dispose()
         {
+            if (_isDisposed)
+                return;
+
+            CleanupSessionEntities();
             _eventLogSubscription?.Invoke();
+            if (_visualPoolRoot != null)
+            {
+                if (Application.isPlaying)
+                    UnityEngine.Object.Destroy(_visualPoolRoot);
+                else
+                    UnityEngine.Object.DestroyImmediate(_visualPoolRoot);
+            }
+            _isDisposed = true;
         }
 
-        private uint CurrentFrameNumber() => (uint)TurnCount;
+        public int GetTrackedEntityCountForDiagnostics() => _sessionEntities.Count;
 
-        private float CurrentTimestamp() => TurnCount / 60f;
+        private uint CurrentFrameNumber() => _clock.FrameNumber;
+
+        private float CurrentTimestamp() => _clock.Timestamp;
 
         private void PublishEntityCreated(Entity entity, string entityType, string name)
         {

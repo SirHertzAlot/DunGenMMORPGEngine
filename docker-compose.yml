@@ -5,20 +5,71 @@ x-logging: &default-logging
     max-file: "5"
 
 services:
-  scylla:
+  # ── Multi-DC Scylla cluster (NetworkTopologyStrategy) ──────────────────────
+  # One host, 4 nodes across two logical DCs so the DC-aware sharding path
+  # (DCAwareRoundRobinPolicy + SCYLLA_LOCAL_DC + LocalQuorum) can be exercised
+  # locally. us-1 and eu-1 are the seed nodes; every node lists both as seeds.
+  # In production each DC would be deployed on its own host/region; the same
+  # seeds + SCYLLA_DC/SCYLLA_RACK pattern applies.
+  scylla-us-1:
     image: scylladb/scylla:5.1
-    container_name: scylla
-    command: ["--smp", "1", "--memory", "1G"]
+    container_name: scylla-us-1
+    command: ["--cluster-name", "mmo-cluster", "--seeds", "scylla-us-1,scylla-eu-1", "--endpoint-snitch", "GossipingPropertyFileSnitch", "--smp", "1", "--memory", "1G"]
     logging: *default-logging
     ports:
       - "127.0.0.1:9042:9042"
     volumes:
-      - scylla-data:/var/lib/scylla
+      - scylla-us-1-data:/var/lib/scylla
+      - ./config/scylla/cassandra-rackdc-us.properties:/etc/scylla/cassandra-rackdc.properties:ro
     healthcheck:
-      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES' || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/$(hostname -i)/9042'"]
       interval: 30s
       timeout: 10s
-      retries: 10
+      retries: 20
+
+  scylla-us-2:
+    image: scylladb/scylla:5.1
+    container_name: scylla-us-2
+    command: ["--cluster-name", "mmo-cluster", "--seeds", "scylla-us-1,scylla-eu-1", "--endpoint-snitch", "GossipingPropertyFileSnitch", "--smp", "1", "--memory", "1G"]
+    logging: *default-logging
+    volumes:
+      - scylla-us-2-data:/var/lib/scylla
+      - ./config/scylla/cassandra-rackdc-us.properties:/etc/scylla/cassandra-rackdc.properties:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/$(hostname -i)/9042'"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+
+  scylla-eu-1:
+    image: scylladb/scylla:5.1
+    container_name: scylla-eu-1
+    command: ["--cluster-name", "mmo-cluster", "--seeds", "scylla-us-1,scylla-eu-1", "--endpoint-snitch", "GossipingPropertyFileSnitch", "--smp", "1", "--memory", "1G"]
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:9043:9042"
+    volumes:
+      - scylla-eu-1-data:/var/lib/scylla
+      - ./config/scylla/cassandra-rackdc-eu.properties:/etc/scylla/cassandra-rackdc.properties:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/$(hostname -i)/9042'"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+
+  scylla-eu-2:
+    image: scylladb/scylla:5.1
+    container_name: scylla-eu-2
+    command: ["--cluster-name", "mmo-cluster", "--seeds", "scylla-us-1,scylla-eu-1", "--endpoint-snitch", "GossipingPropertyFileSnitch", "--smp", "1", "--memory", "1G"]
+    logging: *default-logging
+    volumes:
+      - scylla-eu-2-data:/var/lib/scylla
+      - ./config/scylla/cassandra-rackdc-eu.properties:/etc/scylla/cassandra-rackdc.properties:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/$(hostname -i)/9042'"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
 
   redis:
     image: redis:7
@@ -28,6 +79,37 @@ services:
       - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Per-region Redis sidecars ──────────────────────────────────────────────
+  # The hot cache/buffer is colocated per DC (sidecar + regional cache), so
+  # low-latency hot state stays near its region and never hits the cold store.
+  redis-us:
+    image: redis:7
+    container_name: redis-us
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - redis-us-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-eu:
+    image: redis:7
+    container_name: redis-eu
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:6381:6379"
+    volumes:
+      - redis-eu-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -133,6 +215,10 @@ services:
       AUTHORITATIVE_DIAGNOSTIC_HTTP_PREFIXES: http://*:8080/
       AUTHORITATIVE_STACK_ROLE: stable
       AUTHORITATIVE_RELEASE_CHANNEL: stable
+      SCYLLA_CONTACT_POINT: scylla-us-1,scylla-eu-1
+      SCYLLA_LOCAL_DC: us-east-1
+      SCYLLA_REPLICATION: us-east-1:2,eu-west-1:2
+      REDIS_HOST: redis-us:6379
     ports:
       - "127.0.0.1:8084:8080"
     volumes:
@@ -165,6 +251,10 @@ services:
       AUTHORITATIVE_DIAGNOSTIC_HTTP_PREFIXES: http://*:8080/
       AUTHORITATIVE_STACK_ROLE: canary
       AUTHORITATIVE_RELEASE_CHANNEL: canary
+      SCYLLA_CONTACT_POINT: scylla-us-1,scylla-eu-1
+      SCYLLA_LOCAL_DC: eu-west-1
+      SCYLLA_REPLICATION: us-east-1:2,eu-west-1:2
+      REDIS_HOST: redis-eu:6379
     ports:
       - "127.0.0.1:8085:8080"
     volumes:
@@ -190,8 +280,13 @@ services:
       - ./config/nginx/authoritative-canary.conf:/etc/nginx/conf.d/default.conf:ro
 
 volumes:
-  scylla-data:
+  scylla-us-1-data:
+  scylla-us-2-data:
+  scylla-eu-1-data:
+  scylla-eu-2-data:
   redis-data:
+  redis-us-data:
+  redis-eu-data:
   pgdata:
   unity-headless-data:
   authoritative-data:

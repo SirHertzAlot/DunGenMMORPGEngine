@@ -24,6 +24,7 @@ namespace DunGen.ECS.Core
 
         // Secondary cache: CombatSessionId -> List of entity indices for session-scoped queries
         private readonly Dictionary<int, HashSet<int>> _combatSessionEntities = new(32);
+        private readonly Dictionary<int, int> _combatSessionByEntityIndex = new(256);
 
         // Player entity cache for ultra-fast player lookups
         private Entity _playerEntity = Entity.Null;
@@ -61,6 +62,12 @@ namespace DunGen.ECS.Core
             if (combatSessionId <= 0)
                 return;
 
+            if (_combatSessionByEntityIndex.TryGetValue(entity.Index, out var previousSessionId) &&
+                previousSessionId != combatSessionId)
+            {
+                UnregisterFromSession(entity.Index, previousSessionId);
+            }
+
             if (!_combatSessionEntities.TryGetValue(combatSessionId, out var sessionEntities))
             {
                 sessionEntities = new HashSet<int>(16);
@@ -68,6 +75,7 @@ namespace DunGen.ECS.Core
             }
 
             sessionEntities.Add(entity.Index);
+            _combatSessionByEntityIndex[entity.Index] = combatSessionId;
         }
 
         /// <summary>
@@ -113,6 +121,12 @@ namespace DunGen.ECS.Core
                 sessionEntities.Remove(entityIndex);
                 if (sessionEntities.Count == 0)
                     _combatSessionEntities.Remove(combatSessionId);
+            }
+
+            if (_combatSessionByEntityIndex.TryGetValue(entityIndex, out var currentSessionId) &&
+                currentSessionId == combatSessionId)
+            {
+                _combatSessionByEntityIndex.Remove(entityIndex);
             }
         }
 
@@ -180,6 +194,7 @@ namespace DunGen.ECS.Core
         {
             _entityByIndex.Clear();
             _combatSessionEntities.Clear();
+            _combatSessionByEntityIndex.Clear();
             _playerEntity = Entity.Null;
             _playerEntityIndex = -1;
         }
@@ -189,10 +204,12 @@ namespace DunGen.ECS.Core
             foreach (var sessionId in new List<int>(_combatSessionEntities.Keys))
             {
                 var sessionEntities = _combatSessionEntities[sessionId];
-                sessionEntities.Remove(entityIndex);
-                if (sessionEntities.Count == 0)
-                    _combatSessionEntities.Remove(sessionId);
+                    sessionEntities.Remove(entityIndex);
+                    if (sessionEntities.Count == 0)
+                        _combatSessionEntities.Remove(sessionId);
             }
+
+            _combatSessionByEntityIndex.Remove(entityIndex);
         }
 
         /// <summary>
